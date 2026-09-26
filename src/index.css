@@ -1,0 +1,159 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --bg-main: #F8FAFC;
+    --bg-sec: #FFFFFF;
+    --bg-card: #FFFFFF;
+    --bg-elevated: #F1F5F9;
+    --border-color: #E2E8F0;
+    --border-subtle: #F1F5F9;
+    --text-primary: #0F172A;
+    --text-secondary: #475569;
+    --text-muted: #64748B;
+  }
+
+  .dark {
+    --bg-main: #080A0F;
+    --bg-sec: #0B0E14;
+    --bg-card: #111620;
+    --bg-elevated: #161D2A;
+    --border-color: #1E2633;
+    --border-subtle: #161C26;
+    --text-primary: #F1F5F9;
+    --text-secondary: #94A3B8;
+    --text-muted: #64748B;
+  }
+
+  body {
+    background-color: var(--bg-main);
+    color: var(--text-primary);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    transition: background-color 0.15s ease, color 0.15s ease;
+    -webkit-font-smoothing: antialiased;
+  }
+}
+
+/* Custom Scrollbar for Institutional Terminal Aesthetic */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-sec);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #3B82F6;
+}
+
+/* Technical Monospaced font numbers */
+.font-mono-numbers {
+  font-family: 'JetBrains Mono', 'IBM Plex Mono', monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Institutional Tactile Button System (Linear + Bloomberg Style) */
+.btn-3d {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border-radius: 6px;
+  padding: 0.4rem 0.85rem;
+  transition: all 0.12s cubic-bezier(0.16, 1, 0.3, 1);
+  border: 1px solid var(--border-color);
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.btn-3d:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.06);
+}
+
+.btn-3d:active {
+  transform: translateY(1px) !important;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.3) !important;
+}
+
+/* Button Variants */
+.btn-3d-primary {
+  background: linear-gradient(180deg, #2563EB 0%, #1D4ED8 100%);
+  border-color: #1E40AF;
+  color: #FFFFFF !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+}
+
+.btn-3d-success {
+  background: linear-gradient(180deg, #059669 0%, #047857 100%);
+  border-color: #065F46;
+  color: #FFFFFF !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+}
+
+.btn-3d-danger {
+  background: linear-gradient(180deg, #DC2626 0%, #B91C1C 100%);
+  border-color: #991B1B;
+  color: #FFFFFF !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+}
+
+.btn-3d-warning {
+  background: linear-gradient(180deg, #D97706 0%, #B45309 100%);
+  border-color: #92400E;
+  color: #FFFFFF !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+}
+
+.btn-3d-purple {
+  background: linear-gradient(180deg, #7C3AED 0%, #6D28D9 100%);
+  border-color: #5B21B6;
+  color: #FFFFFF !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+}
+
+.btn-3d-secondary {
+  background: #FFFFFF;
+  border-color: #CBD5E1;
+  color: #0F172A;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.dark .btn-3d-secondary {
+  background: #161D2A;
+  border-color: #1E2633;
+  color: #F1F5F9;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.dark .btn-3d-secondary:hover {
+  background: #1C2536;
+  border-color: #2D3748;
+}
+
+/* Subtle Architectural Grid Pattern (Non-intrusive) */
+.bg-grid-pattern {
+  background-size: 24px 24px;
+  background-image: 
+    linear-gradient(to right, rgba(0, 0, 0, 0.04) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(0, 0, 0, 0.04) 1px, transparent 1px);
+}
+
+.dark .bg-grid-pattern {
+  background-image: 
+    linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+}
