@@ -75,9 +75,9 @@ export function App() {
   const [positions, setPositions] = useState<ActivePosition[]>(() => {
     try {
       const saved = localStorage.getItem('tradechain_positions');
-      if (saved) {
+      if (saved !== null) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed)) return parsed;
       }
     } catch (e) {
       console.warn('Failed to load positions from localStorage', e);
@@ -88,9 +88,9 @@ export function App() {
   const [trades, setTrades] = useState<TradeRecord[]>(() => {
     try {
       const saved = localStorage.getItem('tradechain_trades');
-      if (saved) {
+      if (saved !== null) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed)) return parsed;
       }
     } catch (e) {
       console.warn('Failed to load trades from localStorage', e);
@@ -101,9 +101,9 @@ export function App() {
   const [blocks, setBlocks] = useState<BlockHeader[]>(() => {
     try {
       const saved = localStorage.getItem('tradechain_blocks');
-      if (saved) {
+      if (saved !== null) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed)) return parsed;
       }
     } catch (e) {
       console.warn('Failed to load blocks from localStorage', e);
@@ -166,7 +166,7 @@ export function App() {
     setCandles(generateAssetCandles(selectedPair, basePrice));
   }, [selectedPair]);
 
-  // Initial fetch & synchronization from Supabase database
+  // Initial fetch & synchronization from Supabase database (respecting user deletions)
   const refreshSupabaseData = async () => {
     try {
       const [dbPositions, dbTrades, dbBlocks] = await Promise.all([
@@ -174,9 +174,64 @@ export function App() {
         fetchTradesFromDB(),
         fetchBlocksFromDB()
       ]);
-      if (dbPositions && dbPositions.length > 0) setPositions(dbPositions);
-      if (dbTrades && dbTrades.length > 0) setTrades(dbTrades);
-      if (dbBlocks && dbBlocks.length > 0) setBlocks(dbBlocks);
+
+      // Collect closed position IDs from local storage so deleted positions are NEVER resurrected
+      const closedPosIds = new Set<string>();
+      try {
+        const storedClosed = JSON.parse(localStorage.getItem('tradechain_closed_pos_ids') || '[]');
+        if (Array.isArray(storedClosed)) {
+          storedClosed.forEach((id: string) => closedPosIds.add(id));
+        }
+      } catch {}
+
+      // Check if user has an explicit local positions array (even if empty [])
+      const localPosStr = localStorage.getItem('tradechain_positions');
+      if (localPosStr !== null) {
+        try {
+          const localParsed = JSON.parse(localPosStr);
+          if (Array.isArray(localParsed)) {
+            // Keep local positions, but filter out any closed IDs
+            const filteredLocal = localParsed.filter((p: ActivePosition) => !closedPosIds.has(p.id));
+            
+            // If Supabase has new positions that aren't closed and aren't in local, merge them
+            if (dbPositions && dbPositions.length > 0) {
+              const existingIds = new Set(filteredLocal.map(p => p.id));
+              const freshFromDb = dbPositions.filter(p => !existingIds.has(p.id) && !closedPosIds.has(p.id));
+              const merged = [...filteredLocal, ...freshFromDb];
+              setPositions(merged);
+              localStorage.setItem('tradechain_positions', JSON.stringify(merged));
+            } else {
+              setPositions(filteredLocal);
+            }
+          }
+        } catch {}
+      } else if (dbPositions !== null && dbPositions.length > 0) {
+        const validDbPos = dbPositions.filter(p => !closedPosIds.has(p.id));
+        setPositions(validDbPos);
+        localStorage.setItem('tradechain_positions', JSON.stringify(validDbPos));
+      }
+
+      // Sync trades without losing newly placed local trades
+      if (dbTrades !== null && dbTrades.length > 0) {
+        setTrades(prev => {
+          const existingIds = new Set(prev.map(t => t.id));
+          const freshTrades = dbTrades.filter(t => !existingIds.has(t.id));
+          const merged = [...freshTrades, ...prev];
+          localStorage.setItem('tradechain_trades', JSON.stringify(merged));
+          return merged;
+        });
+      }
+
+      // Sync blocks
+      if (dbBlocks !== null && dbBlocks.length > 0) {
+        setBlocks(prev => {
+          const existingBlockNums = new Set(prev.map(b => b.blockNumber));
+          const freshBlocks = dbBlocks.filter(b => !existingBlockNums.has(b.blockNumber));
+          const merged = [...freshBlocks, ...prev];
+          localStorage.setItem('tradechain_blocks', JSON.stringify(merged));
+          return merged;
+        });
+      }
     } catch (err) {
       console.warn('Supabase fetch gracefully falling back to local cache.', err);
     }
@@ -325,13 +380,47 @@ export function App() {
   };
 
   // Close position handler
-  const handleClosePosition = (posId: string) => {
+  const handleClosePosition = (posId: string, silent: boolean = false) => {
     const target = positions.find(p => p.id === posId);
-    setPositions(prev => prev.filter(p => p.id !== posId));
+    
+    // 1. Immediately update state & localStorage
+    setPositions(prev => {
+      const next = prev.filter(p => p.id !== posId);
+      try {
+        localStorage.setItem('tradechain_positions', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+
+    // 2. Track closed position ID so background refresh NEVER resurrects it
+    try {
+      const closed = JSON.parse(localStorage.getItem('tradechain_closed_pos_ids') || '[]');
+      if (Array.isArray(closed) && !closed.includes(posId)) {
+        closed.push(posId);
+        localStorage.setItem('tradechain_closed_pos_ids', JSON.stringify(closed));
+      }
+    } catch {}
+
+    // 3. Delete from Supabase
     deletePositionFromDB(posId);
-    if (target) {
+
+    if (target && !silent) {
       alert(`Closed position ${target.id} (${target.asset}). Realized P&L: +₹${target.unrealizedPnl.toLocaleString('en-IN')}`);
     }
+  };
+
+  // Emergency liquidate all positions handler
+  const handleLiquidateAllPositions = () => {
+    const idsToClose = positions.map(p => p.id);
+    setPositions([]);
+    try {
+      localStorage.setItem('tradechain_positions', JSON.stringify([]));
+      const closed = JSON.parse(localStorage.getItem('tradechain_closed_pos_ids') || '[]');
+      const updated = Array.from(new Set([...closed, ...idsToClose]));
+      localStorage.setItem('tradechain_closed_pos_ids', JSON.stringify(updated));
+    } catch {}
+
+    idsToClose.forEach(id => deletePositionFromDB(id));
   };
 
   // Render view router according to activePage

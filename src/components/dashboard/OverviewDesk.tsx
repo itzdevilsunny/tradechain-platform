@@ -216,9 +216,9 @@ export const OverviewDesk: React.FC<OverviewDeskProps> = ({
       alert('No active positions to liquidate.');
       return;
     }
+    const count = positions.length;
     positions.forEach(p => onClosePosition(p.id));
     setIsLiquidateConfirmOpen(false);
-    alert(`Emergency stop triggered: All ${positions.length} active positions were closed and logged to audit ledger.`);
   };
 
   const handleExportLedgerJSON = () => {

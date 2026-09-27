@@ -29,7 +29,11 @@ export async function fetchPositionsFromDB(): Promise<ActivePosition[] | null> {
       .select('*')
       .order('opened_at', { ascending: false });
 
-    if (error || !data || data.length === 0) return null;
+    if (error) {
+      console.warn('Supabase fetch positions error:', error.message);
+      return null;
+    }
+    if (!data) return [];
 
     return data.map((row: any): ActivePosition => ({
       id: row.id,
@@ -83,6 +87,14 @@ export async function deletePositionFromDB(positionId: string): Promise<void> {
   }
 }
 
+export async function deleteAllPositionsFromDB(): Promise<void> {
+  try {
+    await supabase.from('positions').delete().neq('id', '___NEVER_MATCH___');
+  } catch (err) {
+    console.warn('Error clearing all positions from Supabase:', err);
+  }
+}
+
 // ============================================================================
 // 3. TRADES (IMMUTABLE AUDITED LEDGER)
 // ============================================================================
@@ -93,7 +105,11 @@ export async function fetchTradesFromDB(): Promise<TradeRecord[] | null> {
       .select('*')
       .order('timestamp', { ascending: false });
 
-    if (error || !data || data.length === 0) return null;
+    if (error) {
+      console.warn('Supabase fetch trades error:', error.message);
+      return null;
+    }
+    if (!data) return [];
 
     return data.map((row: any): TradeRecord => ({
       id: row.id,
@@ -160,7 +176,11 @@ export async function fetchBlocksFromDB(): Promise<BlockHeader[] | null> {
       .select('*')
       .order('block_number', { ascending: false });
 
-    if (error || !data || data.length === 0) return null;
+    if (error) {
+      console.warn('Supabase fetch blocks error:', error.message);
+      return null;
+    }
+    if (!data) return [];
 
     return data.map((row: any): BlockHeader => ({
       blockNumber: Number(row.block_number),
