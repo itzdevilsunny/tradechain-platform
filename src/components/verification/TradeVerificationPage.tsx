@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { generateMerkleProof } from '../../lib/cryptoUtils';
+import { generateMerkleProof, triggerFileDownload } from '../../lib/cryptoUtils';
 import { TradeRecord } from '../../types/trading';
 import {
   ShieldCheck, CheckCircle2, Search, RefreshCw, Lock,
@@ -881,13 +881,13 @@ export const TradeVerificationPage: React.FC<TradeVerificationPageProps> = ({
 
               <button
                 onClick={() => {
-                  const certStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(proofJson, null, 2));
-                  const a = document.createElement('a');
-                  a.href = certStr;
-                  a.download = `Audit_Certificate_${selectedTrade.id}.json`;
-                  a.click();
+                  triggerFileDownload(
+                    JSON.stringify(proofJson, null, 2),
+                    `Audit_Certificate_${selectedTrade.id}.json`,
+                    'application/json;charset=utf-8;'
+                  );
                 }}
-                className="btn-3d btn-3d-primary px-4 py-2 rounded-xl font-bold text-xs flex items-center gap-1.5"
+                className="btn-3d btn-3d-primary px-4 py-2 rounded-xl font-bold text-xs flex items-center gap-1.5 cursor-pointer"
               >
                 <Download size={14} />
                 <span>Download Proof (.JSON)</span>

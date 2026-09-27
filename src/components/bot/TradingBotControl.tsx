@@ -11,6 +11,7 @@ import {
   BarChart, Bar, LineChart, Line, Legend
 } from 'recharts';
 import { ActivePosition, TradeRecord } from '../../types/trading';
+import { triggerFileDownload } from '../../lib/cryptoUtils';
 
 interface TradingBotControlProps {
   niftyPrice: number;
@@ -187,9 +188,11 @@ export const TradingBotControl: React.FC<TradingBotControlProps> = ({
 
   const handleExportConsole = () => {
     const text = consoleLogs.map(l => `[${l.timestamp}] [${l.type}] ${l.message}`).join('\n');
-    const blob = new Blob([text], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href = url; a.download = `bot_console_${Date.now()}.txt`; a.click();
+    triggerFileDownload(
+      text,
+      `bot_console_${Date.now()}.txt`,
+      'text/plain;charset=utf-8;'
+    );
   };
 
   const totalPnl = strategies.reduce((s, x) => s + x.todayPnl, 0);

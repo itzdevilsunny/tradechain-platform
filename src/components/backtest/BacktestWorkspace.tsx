@@ -35,6 +35,7 @@ import {
   Coins,
   LineChart
 } from 'lucide-react';
+import { triggerFileDownload } from '../../lib/cryptoUtils';
 
 export const BacktestWorkspace: React.FC = () => {
   const [asset, setAsset] = useState('NIFTY 50 Futures');
@@ -137,12 +138,11 @@ export const BacktestWorkspace: React.FC = () => {
       `${t.id},${t.entryTime},${t.exitTime},"${t.asset}",${t.side},${t.entryPrice},${t.exitPrice},${t.pnl},${t.pnlPct}%,${t.status},#${t.blockHeight}`
     ).join("\n");
 
-    const blob = new Blob([headers + rows], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `TradeChain_Backtest_${asset.replace(/\s+/g, '_')}_${Date.now()}.csv`;
-    a.click();
+    triggerFileDownload(
+      headers + rows,
+      `TradeChain_Backtest_${asset.replace(/\s+/g, '_')}_${Date.now()}.csv`,
+      'text/csv;charset=utf-8;'
+    );
   };
 
   const filteredTradeLog = simulationData.tradesLog.filter(t => {

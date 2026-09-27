@@ -7,6 +7,7 @@ import {
   Clock, User, Database, Zap, Lock, RefreshCw, ChevronDown, ChevronRight,
   PlusCircle, Activity, Server, FileJson, ShieldAlert, GitCommit
 } from 'lucide-react';
+import { triggerFileDownload } from '../../lib/cryptoUtils';
 
 const EVENT_COLORS: Record<string, { bg: string; text: string; border: string }> = {
   TRADE_CREATED: { bg: 'bg-[#10B981]/15', text: 'text-[#10B981]', border: 'border-[#10B981]/30' },
@@ -70,20 +71,19 @@ export const AuditLogPage: React.FC = () => {
     const rows = filteredLogs.map(l =>
       `${l.id},"${l.timestamp}","${l.actor}",${l.event},"${l.entity}","${l.hash}",${l.status}`
     ).join('\n');
-    const blob = new Blob([headers + rows], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `TradeChain_AuditLog_${Date.now()}.csv`;
-    a.click();
+    triggerFileDownload(
+      headers + rows,
+      `TradeChain_AuditLog_${Date.now()}.csv`,
+      'text/csv;charset=utf-8;'
+    );
   };
 
   const handleExportJSON = () => {
-    const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(filteredLogs, null, 2));
-    const a = document.createElement('a');
-    a.href = dataStr;
-    a.download = `TradeChain_AuditLog_${Date.now()}.json`;
-    a.click();
+    triggerFileDownload(
+      JSON.stringify(filteredLogs, null, 2),
+      `TradeChain_AuditLog_${Date.now()}.json`,
+      'application/json;charset=utf-8;'
+    );
   };
 
   const handleIntegrityCheck = () => {

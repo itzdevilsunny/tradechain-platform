@@ -84,3 +84,21 @@ export function generateMerkleProof(tradeId: string): MerkleProof {
     isValid: true
   };
 }
+
+// Reliable cross-browser file download trigger using standard Blobs and Object URLs
+export function triggerFileDownload(content: string, filename: string, mimeType: string = 'application/json'): void {
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.style.display = 'none';
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  setTimeout(() => {
+    try {
+      document.body.removeChild(anchor);
+      URL.revokeObjectURL(url);
+    } catch {}
+  }, 300);
+}

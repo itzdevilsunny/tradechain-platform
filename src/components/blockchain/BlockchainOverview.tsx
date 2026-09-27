@@ -6,6 +6,7 @@ import {
   RefreshCw, Download, Fingerprint, Database, Network,
   FileText, Clock, TrendingUp, Shield, Zap, Search
 } from 'lucide-react';
+import { triggerFileDownload } from '../../lib/cryptoUtils';
 
 interface BlockchainOverviewProps {
   blocks: BlockHeader[];
@@ -96,12 +97,11 @@ export const BlockchainOverview: React.FC<BlockchainOverviewProps> = ({
     const rows = blocks.map(b =>
       `${b.blockNumber},"${b.blockHash}","${b.previousHash}","${b.timestamp}",${b.txCount},"${b.merkleRoot}","${b.validator}",${b.nonce},${b.status}`
     ).join('\n');
-    const blob = new Blob([headers + rows], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `TradeChain_Ledger_${Date.now()}.csv`;
-    a.click();
+    triggerFileDownload(
+      headers + rows,
+      `TradeChain_Ledger_${Date.now()}.csv`,
+      'text/csv;charset=utf-8;'
+    );
   };
 
   const filteredBlocks = blocks.filter(b => {

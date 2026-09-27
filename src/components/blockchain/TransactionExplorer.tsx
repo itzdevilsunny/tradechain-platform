@@ -10,6 +10,7 @@ import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend, BarChart, Bar
 } from 'recharts';
+import { triggerFileDownload } from '../../lib/cryptoUtils';
 
 interface TransactionExplorerProps {
   trades: TradeRecord[];
@@ -146,12 +147,11 @@ export const TransactionExplorer: React.FC<TransactionExplorerProps> = ({
     const rows = trades.map(t =>
       `"${t.txHash}",${t.id},"${t.timestamp}","${t.asset}",${t.side},${t.price},${t.quantity},${t.totalValue},${t.pnl},#${t.blockNumber}`
     ).join('\n');
-    const blob = new Blob([headers + rows], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `TradeChain_Transactions_${Date.now()}.csv`;
-    a.click();
+    triggerFileDownload(
+      headers + rows,
+      `TradeChain_Transactions_${Date.now()}.csv`,
+      'text/csv;charset=utf-8;'
+    );
   };
 
   const handleCommitMempool = () => {

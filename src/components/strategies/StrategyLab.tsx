@@ -44,6 +44,7 @@ import {
   Line,
   CartesianGrid
 } from 'recharts';
+import { triggerFileDownload } from '../../lib/cryptoUtils';
 
 interface StrategyLabProps {
   onNavigateToBacktest: (stratName: string) => void;
@@ -205,13 +206,11 @@ export const StrategyLab: React.FC<StrategyLabProps> = ({ onNavigateToBacktest }
   };
 
   const handleExportJSON = (strat: StrategyConfig) => {
-    const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(strat, null, 2));
-    const downloadAnchor = document.createElement('a');
-    downloadAnchor.setAttribute('href', dataStr);
-    downloadAnchor.setAttribute('download', `${strat.name.replace(/\s+/g, '_')}_manifest.json`);
-    document.body.appendChild(downloadAnchor);
-    downloadAnchor.click();
-    downloadAnchor.remove();
+    triggerFileDownload(
+      JSON.stringify(strat, null, 2),
+      `${strat.name.replace(/\s+/g, '_')}_manifest.json`,
+      'application/json;charset=utf-8;'
+    );
   };
 
   const handleRunOptimizationSweep = () => {

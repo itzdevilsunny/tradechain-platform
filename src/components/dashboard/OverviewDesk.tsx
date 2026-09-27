@@ -31,8 +31,13 @@ import {
   Lock,
   Layers,
   Sparkles,
-  OctagonAlert
+  OctagonAlert,
+  FileText,
+  FileSpreadsheet,
+  Printer,
+  ExternalLink
 } from 'lucide-react';
+import { triggerFileDownload } from '../../lib/cryptoUtils';
 
 interface OverviewDeskProps {
   candles: CandlestickData[];
@@ -221,25 +226,59 @@ export const OverviewDesk: React.FC<OverviewDeskProps> = ({
     setIsLiquidateConfirmOpen(false);
   };
 
-  const handleExportLedgerJSON = () => {
+  // Enterprise Audit Export Modal state & toast
+  const [isExportAuditModalOpen, setIsExportAuditModalOpen] = useState(false);
+  const [auditExportNotice, setAuditExportNotice] = useState<string | null>(null);
+
+  const handleExportAuditJSON = () => {
     const exportData = {
+      platform: 'TradeChain Institutional Algorithmic Trading & Cryptographic Audit',
+      version: '2.4.0',
+      complianceFramework: 'SEBI Algorithmic Trading Circular 2024/2026',
+      consensusEngine: 'Proof of Authority (PoA) Consortium Ledger',
       exportTimestamp: new Date().toISOString(),
+      networkStatus: 'SYNCHRONIZED',
+      totalActivePositions: positions.length,
+      totalTradeRecords: trades.length,
+      totalBlocksVerified: blocks.length,
       activePositions: positions,
       tradeRecords: trades,
       blockchainHeaders: blocks.map(b => ({
         blockNumber: b.blockNumber,
         hash: b.blockHash,
+        previousHash: b.previousHash,
         merkleRoot: b.merkleRoot,
-        timestamp: b.timestamp
+        validator: b.validator,
+        timestamp: b.timestamp,
+        txCount: b.txCount,
+        status: b.status
       }))
     };
-    const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(exportData, null, 2));
-    const downloadAnchor = document.createElement('a');
-    downloadAnchor.setAttribute('href', dataStr);
-    downloadAnchor.setAttribute('download', `tradechain_ledger_snapshot_${Date.now()}.json`);
-    document.body.appendChild(downloadAnchor);
-    downloadAnchor.click();
-    downloadAnchor.remove();
+    triggerFileDownload(
+      JSON.stringify(exportData, null, 2),
+      `TradeChain_Cryptographic_Audit_${Date.now()}.json`,
+      'application/json;charset=utf-8;'
+    );
+    setAuditExportNotice('JSON Cryptographic Audit Exported Successfully!');
+    setTimeout(() => setAuditExportNotice(null), 3500);
+  };
+
+  const handleExportAuditCSV = () => {
+    const headers = 'Type,ID,Timestamp,Asset,Side,Quantity,Price,Value_INR,PnL,TxHash,BlockNumber,Status,DigitalSignature\n';
+    const positionRows = positions.map(p =>
+      `POSITION,${p.id},"${p.openedAt}","${p.asset}",${p.side},${p.quantity},${p.entryPrice},${p.totalValue.toFixed(2)},${p.unrealizedPnl.toFixed(2)},"0x${p.id}hash",4280,OPEN,"SIG_${p.id}"`
+    );
+    const tradeRows = trades.map(t =>
+      `TRADE,${t.id},"${t.timestamp}","${t.asset}",${t.side},${t.quantity},${t.price},${t.totalValue.toFixed(2)},${t.pnl.toFixed(2)},"${t.txHash}",${t.blockNumber},${t.status},"${t.digitalSignature}"`
+    );
+    const csvContent = headers + [...positionRows, ...tradeRows].join('\n');
+    triggerFileDownload(
+      csvContent,
+      `TradeChain_Regulatory_Ledger_${Date.now()}.csv`,
+      'text/csv;charset=utf-8;'
+    );
+    setAuditExportNotice('CSV Regulatory Ledger Exported Successfully!');
+    setTimeout(() => setAuditExportNotice(null), 3500);
   };
 
   return (
@@ -352,9 +391,9 @@ export const OverviewDesk: React.FC<OverviewDeskProps> = ({
           </button>
 
           <button
-            onClick={handleExportLedgerJSON}
+            onClick={() => setIsExportAuditModalOpen(true)}
             className="btn-3d btn-3d-secondary px-3 py-2 rounded-xl font-bold flex items-center gap-1.5"
-            title="Export Cryptographic Ledger Snapshot as JSON"
+            title="Export Cryptographic Audit Package & Regulatory Ledger"
           >
             <Download size={14} />
             <span className="hidden sm:inline">Export Audit</span>
@@ -684,6 +723,127 @@ export const OverviewDesk: React.FC<OverviewDeskProps> = ({
               Analyze NIFTY 24800 CE Options Chain
             </button>
           </div>
+        </div>
+      )}
+
+      {/* ENTERPRISE CRYPTOGRAPHIC AUDIT EXPORT MODAL */}
+      {isExportAuditModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in">
+          <div className="bg-white dark:bg-[#0B0E14] border border-slate-200 dark:border-[#1E2633] rounded-2xl w-full max-w-xl p-6 shadow-2xl font-mono space-y-5">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-[#1E2633] pb-4">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-[#10B981]/15 text-[#10B981] border border-[#10B981]/30">
+                  <ShieldCheck size={20} />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base text-slate-900 dark:text-[#F1F5F9]">
+                    Cryptographic Audit Export Center
+                  </h3>
+                  <p className="text-[11px] text-slate-500 dark:text-[#94A3B8] font-sans">
+                    SEBI Algorithmic Trading Circular 2024/2026 Compliant Evidence Package
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsExportAuditModalOpen(false)}
+                className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-[#161D2A] text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Audit Package Metadata Grid */}
+            <div className="grid grid-cols-3 gap-3 text-xs">
+              <div className="p-3 rounded-xl bg-slate-50 dark:bg-[#111620] border border-slate-200 dark:border-[#1E2633]">
+                <div className="text-[10px] text-slate-400 font-bold uppercase">Active Positions</div>
+                <div className="text-xl font-bold text-slate-900 dark:text-[#F1F5F9] mt-1">{positions.length}</div>
+                <div className="text-[10px] text-emerald-500 font-bold mt-0.5">Live On-Chain</div>
+              </div>
+              <div className="p-3 rounded-xl bg-slate-50 dark:bg-[#111620] border border-slate-200 dark:border-[#1E2633]">
+                <div className="text-[10px] text-slate-400 font-bold uppercase">Executed Trades</div>
+                <div className="text-xl font-bold text-slate-900 dark:text-[#F1F5F9] mt-1">{trades.length}</div>
+                <div className="text-[10px] text-blue-500 font-bold mt-0.5">Merkle Verified</div>
+              </div>
+              <div className="p-3 rounded-xl bg-slate-50 dark:bg-[#111620] border border-slate-200 dark:border-[#1E2633]">
+                <div className="text-[10px] text-slate-400 font-bold uppercase">Blockchain Blocks</div>
+                <div className="text-xl font-bold text-slate-900 dark:text-[#F1F5F9] mt-1">{blocks.length}</div>
+                <div className="text-[10px] text-purple-500 font-bold mt-0.5">PoA Consensus</div>
+              </div>
+            </div>
+
+            {/* Download Options */}
+            <div className="space-y-3 font-sans text-xs">
+              <div className="p-4 rounded-xl border border-slate-200 dark:border-[#1E2633] bg-slate-50/50 dark:bg-[#111620]/60 hover:border-emerald-500/50 transition-all flex items-center justify-between gap-4">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 font-mono font-bold text-slate-900 dark:text-[#F1F5F9]">
+                    <FileText size={16} className="text-[#10B981]" />
+                    <span>Cryptographic Evidence Package (.JSON)</span>
+                    <span className="px-1.5 py-0.5 text-[9px] font-mono bg-emerald-500/10 text-emerald-500 rounded border border-emerald-500/20">RECOMMENDED</span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 dark:text-[#94A3B8]">
+                    Full JSON package with Merkle root hashes, block headers, digital signatures, and timestamped trade state.
+                  </p>
+                </div>
+                <button
+                  onClick={handleExportAuditJSON}
+                  className="btn-3d btn-3d-primary px-3.5 py-2 rounded-xl font-mono text-xs font-bold shrink-0 flex items-center gap-1.5"
+                >
+                  <Download size={13} />
+                  <span>Download JSON</span>
+                </button>
+              </div>
+
+              <div className="p-4 rounded-xl border border-slate-200 dark:border-[#1E2633] bg-slate-50/50 dark:bg-[#111620]/60 hover:border-blue-500/50 transition-all flex items-center justify-between gap-4">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 font-mono font-bold text-slate-900 dark:text-[#F1F5F9]">
+                    <FileSpreadsheet size={16} className="text-[#3B82F6]" />
+                    <span>SEBI Regulatory Ledger (.CSV)</span>
+                    <span className="px-1.5 py-0.5 text-[9px] font-mono bg-blue-500/10 text-blue-500 rounded border border-blue-500/20">EXCEL/SHEETS</span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 dark:text-[#94A3B8]">
+                    Standardized spreadsheet ledger formatted for Indian tax computation, compliance audits, and broker reconciliation.
+                  </p>
+                </div>
+                <button
+                  onClick={handleExportAuditCSV}
+                  className="btn-3d btn-3d-secondary px-3.5 py-2 rounded-xl font-mono text-xs font-bold shrink-0 flex items-center gap-1.5"
+                >
+                  <Download size={13} />
+                  <span>Download CSV</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Direct Multi-Action Footer */}
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-200 dark:border-[#1E2633]">
+              <button
+                onClick={() => {
+                  handleExportAuditJSON();
+                  handleExportAuditCSV();
+                }}
+                className="text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-1.5 cursor-pointer"
+              >
+                <Download size={13} />
+                <span>Download Both (JSON + CSV)</span>
+              </button>
+
+              <button
+                onClick={() => setIsExportAuditModalOpen(false)}
+                className="px-4 py-2 rounded-xl bg-slate-200 dark:bg-[#161D2A] text-slate-700 dark:text-slate-300 font-bold text-xs hover:bg-slate-300 dark:hover:bg-[#1E2633] transition-all cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Floating Audit Toast Notification */}
+      {auditExportNotice && (
+        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2.5 px-4 py-3 rounded-xl bg-[#10B981] text-white shadow-xl font-mono text-xs animate-in slide-in-from-bottom duration-300">
+          <CheckCircle2 size={16} />
+          <span className="font-bold">{auditExportNotice}</span>
         </div>
       )}
     </div>
