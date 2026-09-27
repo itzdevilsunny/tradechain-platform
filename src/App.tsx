@@ -28,6 +28,8 @@ import { ActivePositionsTable } from './components/dashboard/ActivePositionsTabl
 import { RecentTradesTable } from './components/dashboard/RecentTradesTable';
 
 import { BlockchainOverview } from './components/blockchain/BlockchainOverview';
+import { TransactionExplorer } from './components/blockchain/TransactionExplorer';
+import { BlockExplorer } from './components/blockchain/BlockExplorer';
 import { TradeVerificationPage } from './components/verification/TradeVerificationPage';
 import { BacktestWorkspace } from './components/backtest/BacktestWorkspace';
 import { StrategyLab } from './components/strategies/StrategyLab';
@@ -319,10 +321,39 @@ export function App() {
         );
 
       case 'blockchain':
-      case 'blocks':
-      case 'transactions':
         return (
           <BlockchainOverview
+            blocks={blocks}
+            trades={trades}
+            onSelectTrade={(tradeId) => {
+              const trd = trades.find(t => t.id === tradeId) || trades[0];
+              setSelectedTrade(trd);
+            }}
+            onNavigateToVerify={(tradeId) => {
+              setSelectedTradeIdForVerify(tradeId);
+              setActivePage('verify');
+            }}
+          />
+        );
+
+      case 'transactions':
+        return (
+          <TransactionExplorer
+            trades={trades}
+            onSelectTrade={(tradeId) => {
+              const trd = trades.find(t => t.id === tradeId) || trades[0];
+              setSelectedTrade(trd);
+            }}
+            onNavigateToVerify={(tradeId) => {
+              setSelectedTradeIdForVerify(tradeId);
+              setActivePage('verify');
+            }}
+          />
+        );
+
+      case 'blocks':
+        return (
+          <BlockExplorer
             blocks={blocks}
             trades={trades}
             onSelectTrade={(tradeId) => {
