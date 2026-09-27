@@ -21,7 +21,7 @@ export const SignalPanel: React.FC<SignalPanelProps> = ({ signal, onOpenAIModal 
   const [isExpanded, setIsExpanded] = useState(true);
 
   return (
-    <div className="p-4 rounded-xl bg-[#11161D] border border-[#242B35] space-y-4 shadow-fintech h-full flex flex-col justify-between">
+    <div className="p-4 rounded-xl bg-white dark:bg-[#111620] border border-slate-200 dark:border-[#1E2633] space-y-4 shadow-sm flex flex-col justify-between">
       <div>
         {/* Header */}
         <div className="flex items-center justify-between border-b border-[#242B35] pb-3">

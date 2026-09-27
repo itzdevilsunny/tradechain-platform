@@ -278,49 +278,49 @@ export const OverviewDesk: React.FC<OverviewDeskProps> = ({
           />
         </div>
 
-        <div className="space-y-5">
+        <div>
           <SignalPanel
             signal={MOCK_SIGNAL}
             onOpenAIModal={onOpenAIModal}
           />
-
-          {/* Sector Movers & Market Breadth Mini Widget */}
-          <div className="p-4 bg-white dark:bg-[#0B0E14] border border-slate-200 dark:border-[#1E2633] rounded-xl font-mono text-xs space-y-3">
-            <div className="flex items-center justify-between border-b border-slate-200 dark:border-[#1E2633] pb-2">
-              <span className="font-bold text-slate-900 dark:text-[#F1F5F9] flex items-center gap-1.5">
-                <Flame size={14} className="text-[#F59E0B]" />
-                NSE Sector Performance
-              </span>
-              <span className="text-[10px] text-slate-400">1-Min Heatmap</span>
-            </div>
-
-            <div className="grid grid-cols-2 gap-2 text-[11px]">
-              {sectors.map(sec => {
-                const isBull = sec.change >= 0;
-                return (
-                  <div
-                    key={sec.name}
-                    className="p-2 rounded-lg bg-slate-50 dark:bg-[#111620] border border-slate-200 dark:border-[#1E2633] flex items-center justify-between"
-                  >
-                    <span className="font-medium text-slate-700 dark:text-[#94A3B8] truncate max-w-[85px]">{sec.name}</span>
-                    <span className={`font-bold ${isBull ? 'text-[#10B981]' : 'text-[#EF4444]'}`}>
-                      {isBull ? '+' : ''}{sec.change}%
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-
-            <div className="pt-1 flex items-center justify-between text-[10px] text-slate-500 border-t border-slate-100 dark:border-[#1E2633]">
-              <span>Advances: <strong className="text-[#10B981]">1,428</strong></span>
-              <span>Declines: <strong className="text-[#EF4444]">792</strong></span>
-              <span>A/D: <strong className="text-slate-900 dark:text-[#F1F5F9]">1.80</strong></span>
-            </div>
-          </div>
         </div>
       </div>
 
-      {/* 5. Active Positions Table */}
+      {/* 5. NSE Sector Performance & Market Breadth */}
+      <div className="p-4 bg-white dark:bg-[#0B0E14] border border-slate-200 dark:border-[#1E2633] rounded-xl font-mono text-xs space-y-3 shadow-xs">
+        <div className="flex flex-wrap items-center justify-between border-b border-slate-200 dark:border-[#1E2633] pb-2 gap-2">
+          <div className="flex items-center gap-2">
+            <Flame size={15} className="text-[#F59E0B]" />
+            <span className="font-bold text-slate-900 dark:text-[#F1F5F9]">NSE Sector Performance & Breadth</span>
+            <span className="text-[10px] text-slate-400">1-Min Tick Feed</span>
+          </div>
+          <div className="flex items-center gap-4 text-[11px] text-slate-500">
+            <span>Advances: <strong className="text-[#10B981]">1,428</strong></span>
+            <span>Declines: <strong className="text-[#EF4444]">792</strong></span>
+            <span>A/D Ratio: <strong className="text-slate-900 dark:text-[#F1F5F9]">1.80</strong></span>
+            <span className="text-[#3B82F6] font-bold">FII Net: +₹1,240 Cr</span>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 text-xs">
+          {sectors.map(sec => {
+            const isBull = sec.change >= 0;
+            return (
+              <div
+                key={sec.name}
+                className="p-2.5 rounded-lg bg-slate-50 dark:bg-[#111620] border border-slate-200 dark:border-[#1E2633] flex items-center justify-between"
+              >
+                <span className="font-medium text-slate-700 dark:text-[#94A3B8]">{sec.name}</span>
+                <span className={`font-bold ${isBull ? 'text-[#10B981]' : 'text-[#EF4444]'}`}>
+                  {isBull ? '+' : ''}{sec.change}%
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* 6. Active Positions Table */}
       <ActivePositionsTable
         positions={positions}
         onSelectPosition={(posId) => {
