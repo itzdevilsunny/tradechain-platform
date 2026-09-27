@@ -220,90 +220,113 @@ CREATE TABLE IF NOT EXISTS public.system_services (
 );
 
 -- ============================================================================
--- 11. ROW LEVEL SECURITY (RLS) POLICIES
+-- 11. ROW LEVEL SECURITY (RLS) POLICIES (Idempotent & Safe to Re-run)
 -- ============================================================================
-ALTER TABLE public.positions ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.trades ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.blocks ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.strategies ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.backtests ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.risk_rules ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.audit_logs ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.ai_signals ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.market_candles ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.validator_nodes ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.system_services ENABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS public.positions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS public.trades ENABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS public.blocks ENABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS public.strategies ENABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS public.backtests ENABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS public.risk_rules ENABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS public.audit_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS public.ai_signals ENABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS public.market_candles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS public.validator_nodes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS public.system_services ENABLE ROW LEVEL SECURITY;
 
--- Anonymous public read access for immutable verification & desk monitoring
-DO $$ 
+-- Safely drop existing policies to prevent "policy already exists" (42710) errors
+DROP POLICY IF EXISTS "tradechain_positions_policy" ON public.positions;
+DROP POLICY IF EXISTS "Public read positions" ON public.positions;
+DROP POLICY IF EXISTS "Public read access for positions" ON public.positions;
+DROP POLICY IF EXISTS "Anon manage positions" ON public.positions;
+DROP POLICY IF EXISTS "Anon insert on positions" ON public.positions;
+DROP POLICY IF EXISTS "Service role full access on positions" ON public.positions;
+
+DROP POLICY IF EXISTS "tradechain_trades_policy" ON public.trades;
+DROP POLICY IF EXISTS "Public read trades" ON public.trades;
+DROP POLICY IF EXISTS "Public read access for trades" ON public.trades;
+DROP POLICY IF EXISTS "Anon insert trades" ON public.trades;
+DROP POLICY IF EXISTS "Anon insert on trades" ON public.trades;
+DROP POLICY IF EXISTS "Service role full access on trades" ON public.trades;
+
+DROP POLICY IF EXISTS "tradechain_blocks_policy" ON public.blocks;
+DROP POLICY IF EXISTS "Public read blocks" ON public.blocks;
+DROP POLICY IF EXISTS "Public read access for blocks" ON public.blocks;
+DROP POLICY IF EXISTS "Service role full access on blocks" ON public.blocks;
+
+DROP POLICY IF EXISTS "tradechain_strategies_policy" ON public.strategies;
+DROP POLICY IF EXISTS "Public read strategies" ON public.strategies;
+DROP POLICY IF EXISTS "Public read access for strategies" ON public.strategies;
+DROP POLICY IF EXISTS "Service role full access on strategies" ON public.strategies;
+
+DROP POLICY IF EXISTS "tradechain_backtests_policy" ON public.backtests;
+
+DROP POLICY IF EXISTS "tradechain_risk_rules_policy" ON public.risk_rules;
+DROP POLICY IF EXISTS "Public read risk_rules" ON public.risk_rules;
+DROP POLICY IF EXISTS "Public read access for risk_rules" ON public.risk_rules;
+
+DROP POLICY IF EXISTS "tradechain_audit_logs_policy" ON public.audit_logs;
+DROP POLICY IF EXISTS "Public read audit_logs" ON public.audit_logs;
+DROP POLICY IF EXISTS "Public read access for audit_logs" ON public.audit_logs;
+DROP POLICY IF EXISTS "Anon insert audit_logs" ON public.audit_logs;
+DROP POLICY IF EXISTS "Anon insert on audit_logs" ON public.audit_logs;
+DROP POLICY IF EXISTS "Service role full access on audit_logs" ON public.audit_logs;
+
+DROP POLICY IF EXISTS "tradechain_ai_signals_policy" ON public.ai_signals;
+DROP POLICY IF EXISTS "Public read ai_signals" ON public.ai_signals;
+DROP POLICY IF EXISTS "Public read access for ai_signals" ON public.ai_signals;
+
+DROP POLICY IF EXISTS "tradechain_candles_policy" ON public.market_candles;
+DROP POLICY IF EXISTS "Public read market_candles" ON public.market_candles;
+DROP POLICY IF EXISTS "Public read access for market_candles" ON public.market_candles;
+
+DROP POLICY IF EXISTS "tradechain_validators_policy" ON public.validator_nodes;
+DROP POLICY IF EXISTS "Public read validator_nodes" ON public.validator_nodes;
+DROP POLICY IF EXISTS "Public read access for validator_nodes" ON public.validator_nodes;
+
+DROP POLICY IF EXISTS "tradechain_services_policy" ON public.system_services;
+DROP POLICY IF EXISTS "Public read system_services" ON public.system_services;
+DROP POLICY IF EXISTS "Public read access for system_services" ON public.system_services;
+
+-- Create clean universal read/write policies for the frontend web application (anon & authenticated)
+CREATE POLICY "tradechain_positions_policy" ON public.positions FOR ALL TO anon, authenticated, service_role USING (true) WITH CHECK (true);
+CREATE POLICY "tradechain_trades_policy" ON public.trades FOR ALL TO anon, authenticated, service_role USING (true) WITH CHECK (true);
+CREATE POLICY "tradechain_blocks_policy" ON public.blocks FOR ALL TO anon, authenticated, service_role USING (true) WITH CHECK (true);
+CREATE POLICY "tradechain_strategies_policy" ON public.strategies FOR ALL TO anon, authenticated, service_role USING (true) WITH CHECK (true);
+CREATE POLICY "tradechain_backtests_policy" ON public.backtests FOR ALL TO anon, authenticated, service_role USING (true) WITH CHECK (true);
+CREATE POLICY "tradechain_risk_rules_policy" ON public.risk_rules FOR ALL TO anon, authenticated, service_role USING (true) WITH CHECK (true);
+CREATE POLICY "tradechain_audit_logs_policy" ON public.audit_logs FOR ALL TO anon, authenticated, service_role USING (true) WITH CHECK (true);
+CREATE POLICY "tradechain_ai_signals_policy" ON public.ai_signals FOR ALL TO anon, authenticated, service_role USING (true) WITH CHECK (true);
+CREATE POLICY "tradechain_candles_policy" ON public.market_candles FOR ALL TO anon, authenticated, service_role USING (true) WITH CHECK (true);
+CREATE POLICY "tradechain_validators_policy" ON public.validator_nodes FOR ALL TO anon, authenticated, service_role USING (true) WITH CHECK (true);
+CREATE POLICY "tradechain_services_policy" ON public.system_services FOR ALL TO anon, authenticated, service_role USING (true) WITH CHECK (true);
+
+-- ============================================================================
+-- 12. ENABLE SUPABASE REALTIME REPLICATION (Safe Against Duplicates)
+-- ============================================================================
+DO $$
 BEGIN
-    DROP POLICY IF EXISTS "Public read access for trades" ON public.trades;
-    CREATE POLICY "Public read access for trades" ON public.trades FOR SELECT USING (true);
-
-    DROP POLICY IF EXISTS "Public read access for blocks" ON public.blocks;
-    CREATE POLICY "Public read access for blocks" ON public.blocks FOR SELECT USING (true);
-
-    DROP POLICY IF EXISTS "Public read access for positions" ON public.positions;
-    CREATE POLICY "Public read access for positions" ON public.positions FOR SELECT USING (true);
-
-    DROP POLICY IF EXISTS "Public read access for strategies" ON public.strategies;
-    CREATE POLICY "Public read access for strategies" ON public.strategies FOR SELECT USING (true);
-
-    DROP POLICY IF EXISTS "Public read access for audit_logs" ON public.audit_logs;
-    CREATE POLICY "Public read access for audit_logs" ON public.audit_logs FOR SELECT USING (true);
-
-    DROP POLICY IF EXISTS "Public read access for market_candles" ON public.market_candles;
-    CREATE POLICY "Public read access for market_candles" ON public.market_candles FOR SELECT USING (true);
-
-    DROP POLICY IF EXISTS "Public read access for risk_rules" ON public.risk_rules;
-    CREATE POLICY "Public read access for risk_rules" ON public.risk_rules FOR SELECT USING (true);
-
-    DROP POLICY IF EXISTS "Public read access for ai_signals" ON public.ai_signals;
-    CREATE POLICY "Public read access for ai_signals" ON public.ai_signals FOR SELECT USING (true);
-
-    DROP POLICY IF EXISTS "Public read access for validator_nodes" ON public.validator_nodes;
-    CREATE POLICY "Public read access for validator_nodes" ON public.validator_nodes FOR SELECT USING (true);
-
-    DROP POLICY IF EXISTS "Public read access for system_services" ON public.system_services;
-    CREATE POLICY "Public read access for system_services" ON public.system_services FOR SELECT USING (true);
+    BEGIN
+        ALTER PUBLICATION supabase_realtime ADD TABLE public.trades;
+    EXCEPTION WHEN duplicate_object THEN NULL;
+    END;
+    BEGIN
+        ALTER PUBLICATION supabase_realtime ADD TABLE public.positions;
+    EXCEPTION WHEN duplicate_object THEN NULL;
+    END;
+    BEGIN
+        ALTER PUBLICATION supabase_realtime ADD TABLE public.blocks;
+    EXCEPTION WHEN duplicate_object THEN NULL;
+    END;
+    BEGIN
+        ALTER PUBLICATION supabase_realtime ADD TABLE public.audit_logs;
+    EXCEPTION WHEN duplicate_object THEN NULL;
+    END;
+    BEGIN
+        ALTER PUBLICATION supabase_realtime ADD TABLE public.ai_signals;
+    EXCEPTION WHEN duplicate_object THEN NULL;
+    END;
 END $$;
-
--- Full CRUD permissions for authenticated desk operators and service role
-DO $$ 
-BEGIN
-    DROP POLICY IF EXISTS "Service role full access on trades" ON public.trades;
-    CREATE POLICY "Service role full access on trades" ON public.trades FOR ALL TO service_role USING (true) WITH CHECK (true);
-
-    DROP POLICY IF EXISTS "Service role full access on positions" ON public.positions;
-    CREATE POLICY "Service role full access on positions" ON public.positions FOR ALL TO service_role USING (true) WITH CHECK (true);
-
-    DROP POLICY IF EXISTS "Service role full access on blocks" ON public.blocks;
-    CREATE POLICY "Service role full access on blocks" ON public.blocks FOR ALL TO service_role USING (true) WITH CHECK (true);
-
-    DROP POLICY IF EXISTS "Service role full access on strategies" ON public.strategies;
-    CREATE POLICY "Service role full access on strategies" ON public.strategies FOR ALL TO service_role USING (true) WITH CHECK (true);
-
-    DROP POLICY IF EXISTS "Service role full access on audit_logs" ON public.audit_logs;
-    CREATE POLICY "Service role full access on audit_logs" ON public.audit_logs FOR ALL TO service_role USING (true) WITH CHECK (true);
-
-    DROP POLICY IF EXISTS "Anon insert on trades" ON public.trades;
-    CREATE POLICY "Anon insert on trades" ON public.trades FOR INSERT WITH CHECK (true);
-
-    DROP POLICY IF EXISTS "Anon insert on positions" ON public.positions;
-    CREATE POLICY "Anon insert on positions" ON public.positions FOR ALL USING (true) WITH CHECK (true);
-
-    DROP POLICY IF EXISTS "Anon insert on audit_logs" ON public.audit_logs;
-    CREATE POLICY "Anon insert on audit_logs" ON public.audit_logs FOR INSERT WITH CHECK (true);
-END $$;
-
--- ============================================================================
--- 12. ENABLE SUPABASE REALTIME REPLICATION
--- ============================================================================
-ALTER PUBLICATION supabase_realtime ADD TABLE public.trades;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.positions;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.blocks;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.audit_logs;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.ai_signals;
 
 -- ============================================================================
 -- 13. SEED INITIAL INSTITUTIONAL DATA
