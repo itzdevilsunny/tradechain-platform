@@ -177,7 +177,7 @@ export interface AuditLogItem {
   id: string;
   timestamp: string;
   actor: string;
-  event: 'TRADE_CREATED' | 'BLOCK_COMMITTED' | 'STRATEGY_UPDATED' | 'RISK_LIMIT_MODIFIED' | 'VERIFICATION_EXECUTED';
+  event: 'TRADE_CREATED' | 'BLOCK_COMMITTED' | 'STRATEGY_UPDATED' | 'RISK_LIMIT_MODIFIED' | 'VERIFICATION_EXECUTED' | 'GOVERNANCE_ALERT';
   entity: string;
   hash: string;
   status: 'SUCCESS' | 'FAILED';

@@ -21,6 +21,7 @@ import { MarketsTerminal } from './components/markets/MarketsTerminal';
 import { TradingBotControl } from './components/bot/TradingBotControl';
 
 // Workspace View Components
+import { OverviewDesk } from './components/dashboard/OverviewDesk';
 import { KPICards } from './components/dashboard/KPICards';
 import { TradingChart } from './components/dashboard/TradingChart';
 import { SignalPanel } from './components/dashboard/SignalPanel';
@@ -37,6 +38,7 @@ import { RiskManagementCenter } from './components/risk/RiskManagementCenter';
 import { PortfolioOverview } from './components/portfolio/PortfolioOverview';
 import { SystemHealthPage } from './components/monitoring/SystemHealthPage';
 import { AuditLogPage } from './components/audit/AuditLogPage';
+import { SettingsPage } from './components/settings/SettingsPage';
 
 import { ShieldCheck } from 'lucide-react';
 
@@ -234,90 +236,25 @@ export function App() {
 
       case 'overview':
         return (
-          <div className="space-y-6">
-            {/* Overview Header Banner */}
-            <div className="flex flex-wrap items-center justify-between gap-4 bg-white dark:bg-[#111620] p-5 rounded-xl border border-slate-200 dark:border-[#1E2633] shadow-xs">
-              <div>
-                <div className="flex items-center gap-2">
-                  <h1 className="text-xl font-bold font-mono text-slate-900 dark:text-[#F1F5F9] tracking-tight">
-                    Trading Overview — NSE / F&O Desk
-                  </h1>
-                  <span className="px-2 py-0.5 text-[10px] font-mono font-bold bg-[#10B981]/15 text-[#10B981] border border-[#10B981]/30 rounded">
-                    UPSTOX & GROWW GATEWAY ONLINE
-                  </span>
-                </div>
-                <p className="text-xs text-slate-500 dark:text-[#94A3B8] mt-1 font-sans">
-                  Real-time Indian algorithmic trading & cryptographically audited execution monitoring.
-                </p>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <div className="text-right font-mono text-xs hidden sm:block">
-                  <span className="text-slate-500 dark:text-[#64748B] block text-[10px]">Active Symbol</span>
-                  <span className="text-[#3B82F6] font-bold">{selectedPair}</span>
-                </div>
-                <button
-                  onClick={() => setActivePage('verify')}
-                  className="btn-3d btn-3d-primary px-4 py-2 rounded-xl text-xs font-mono font-bold flex items-center gap-2 shadow-md"
-                >
-                  <ShieldCheck size={16} />
-                  <span>Audit Engine</span>
-                </button>
-              </div>
-            </div>
-
-            {/* 5 KPI Cards */}
-            <KPICards
-              portfolioValue={117850.42 + positions.reduce((acc, p) => acc + p.unrealizedPnl, 0)}
-              todayPnl={2340.18 + positions.reduce((acc, p) => acc + p.unrealizedPnl, 0)}
-              todayPnlPct={2.04}
-              activeTradesCount={positions.length}
-              buyCount={positions.filter(p => p.side === 'BUY').length}
-              sellCount={positions.filter(p => p.side === 'SELL').length}
-              winRate={71.4}
-              chainIntegrity={100}
-            />
-
-            {/* Main Central Trading Chart + Live Signal Panel */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-              <div className="lg:col-span-2">
-                <TradingChart
-                  candles={candles}
-                  selectedPair={selectedPair}
-                  onSelectPair={setSelectedPair}
-                  price={niftyPrice}
-                  priceChangePct={niftyChange}
-                />
-              </div>
-
-              <div>
-                <SignalPanel
-                  signal={MOCK_SIGNAL}
-                  onOpenAIModal={() => setIsAIAssistantOpen(true)}
-                />
-              </div>
-            </div>
-
-            {/* Active Positions Table */}
-            <ActivePositionsTable
-              positions={positions}
-              onSelectPosition={(posId) => {
-                const trd = trades.find(t => t.id === 'TRD-IN-00104') || trades[0];
-                if (trd) setSelectedTrade(trd);
-              }}
-              onClosePosition={handleClosePosition}
-            />
-
-            {/* Recent Trades Table */}
-            <RecentTradesTable
-              trades={trades}
-              onSelectTrade={(trade) => setSelectedTrade(trade)}
-              onNavigateToVerify={(tradeId) => {
-                setSelectedTradeIdForVerify(tradeId);
-                setActivePage('verify');
-              }}
-            />
-          </div>
+          <OverviewDesk
+            candles={candles}
+            selectedPair={selectedPair}
+            onSelectPair={setSelectedPair}
+            niftyPrice={niftyPrice}
+            niftyChange={niftyChange}
+            positions={positions}
+            trades={trades}
+            blocks={blocks}
+            onExecuteOrder={handleExecuteOrder}
+            onClosePosition={handleClosePosition}
+            onSelectTrade={(trade) => setSelectedTrade(trade)}
+            onNavigateToVerify={(tradeId) => {
+              setSelectedTradeIdForVerify(tradeId);
+              setActivePage('verify');
+            }}
+            onNavigateToPage={(page) => setActivePage(page)}
+            onOpenAIModal={() => setIsAIAssistantOpen(true)}
+          />
         );
 
       case 'blockchain':
@@ -398,6 +335,17 @@ export function App() {
         );
 
       case 'portfolio':
+        return (
+          <PortfolioOverview
+            positions={positions}
+            trades={trades}
+            niftyPrice={niftyPrice}
+            onClosePosition={handleClosePosition}
+            onExecuteOrder={handleExecuteOrder}
+            onNavigateToMarkets={() => setActivePage('markets')}
+          />
+        );
+
       case 'analytics':
         return (
           <PortfolioOverview
@@ -414,8 +362,10 @@ export function App() {
         return <SystemHealthPage />;
 
       case 'audit':
-      case 'settings':
         return <AuditLogPage />;
+
+      case 'settings':
+        return <SettingsPage />;
 
       default:
         return null;

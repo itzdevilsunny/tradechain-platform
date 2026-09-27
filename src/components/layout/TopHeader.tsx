@@ -1,16 +1,23 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { NavPage } from '../../types/trading';
-import { 
-  Search, 
-  Bell, 
-  Sparkles, 
-  Menu, 
-  Sun, 
-  Moon, 
-  Clock, 
-  ShieldCheck, 
-  Check, 
-  X
+import {
+  Search,
+  Bell,
+  Sparkles,
+  Menu,
+  Sun,
+  Moon,
+  Clock,
+  ShieldCheck,
+  Check,
+  X,
+  AlertTriangle,
+  Zap,
+  TrendingUp,
+  TrendingDown,
+  Database,
+  Wifi,
+  CheckCircle2
 } from 'lucide-react';
 
 interface TopHeaderProps {
@@ -25,6 +32,102 @@ interface TopHeaderProps {
   btcChange: number;
 }
 
+type NotifType = 'BLOCK' | 'TRADE' | 'SIGNAL' | 'RISK' | 'SYSTEM';
+
+interface Notification {
+  id: string;
+  type: NotifType;
+  title: string;
+  body: string;
+  time: string;
+  read: boolean;
+  ts: number;
+}
+
+const INITIAL_NOTIFICATIONS: Notification[] = [
+  {
+    id: 'N1', type: 'BLOCK',
+    title: 'Block #4281 Finalized',
+    body: '24 trade transactions cryptographically verified on-chain. Merkle root 0x9ab42ef...',
+    time: '2m ago', read: false, ts: Date.now() - 120000
+  },
+  {
+    id: 'N2', type: 'TRADE',
+    title: 'Trade TRD-IN-00104 Executed',
+    body: 'BUY 50 Qty NIFTY 50 Futures @ ₹24,850.40 approved by Upstox FIX Gateway.',
+    time: '5m ago', read: false, ts: Date.now() - 300000
+  },
+  {
+    id: 'N3', type: 'SIGNAL',
+    title: 'BUY Signal Generated',
+    body: 'EMA20 crossed above EMA50 on NIFTY 50 (15m chart). Confidence: 87.4%',
+    time: '8m ago', read: true, ts: Date.now() - 480000
+  },
+  {
+    id: 'N4', type: 'RISK',
+    title: 'Risk Alert: Position Nearing Limit',
+    body: 'BANK NIFTY position at 84% of max position size limit. Monitor closely.',
+    time: '12m ago', read: true, ts: Date.now() - 720000
+  },
+  {
+    id: 'N5', type: 'SYSTEM',
+    title: 'All Systems Operational',
+    body: '6/6 services healthy. NSE data feed latency: 12ms. Block validator synced.',
+    time: '18m ago', read: true, ts: Date.now() - 1080000
+  },
+];
+
+const NOTIF_COLORS: Record<NotifType, { icon: React.ReactNode; bg: string; text: string; dot: string }> = {
+  BLOCK: {
+    icon: <Database size={13} />,
+    bg: 'bg-[#3B82F6]/15', text: 'text-[#3B82F6]', dot: 'bg-[#3B82F6]'
+  },
+  TRADE: {
+    icon: <TrendingUp size={13} />,
+    bg: 'bg-[#10B981]/15', text: 'text-[#10B981]', dot: 'bg-[#10B981]'
+  },
+  SIGNAL: {
+    icon: <Zap size={13} />,
+    bg: 'bg-[#F59E0B]/15', text: 'text-[#F59E0B]', dot: 'bg-[#F59E0B]'
+  },
+  RISK: {
+    icon: <AlertTriangle size={13} />,
+    bg: 'bg-[#EF4444]/15', text: 'text-[#EF4444]', dot: 'bg-[#EF4444]'
+  },
+  SYSTEM: {
+    icon: <Wifi size={13} />,
+    bg: 'bg-[#8B5CF6]/15', text: 'text-[#8B5CF6]', dot: 'bg-[#8B5CF6]'
+  },
+};
+
+// Auto-generate new notifications from live trading activity
+const LIVE_NOTIF_TEMPLATES: Omit<Notification, 'id' | 'time' | 'ts'>[] = [
+  {
+    type: 'TRADE',
+    title: 'Order Executed',
+    body: `BUY 25 Qty BANK NIFTY Futures @ ₹${(54200 + Math.random() * 300).toFixed(2)} via Zerodha Kite`,
+    read: false
+  },
+  {
+    type: 'BLOCK',
+    title: `Block #${Math.floor(4280 + Math.random() * 10)} Committed`,
+    body: '18 transactions anchored. Validator quorum 14/14 confirmed.',
+    read: false
+  },
+  {
+    type: 'SIGNAL',
+    title: `SELL Signal — RELIANCE`,
+    body: 'RSI crossed above 70 overbought. Strategy: Momentum Driver. Confidence: 82%',
+    read: false
+  },
+  {
+    type: 'SYSTEM',
+    title: 'FIX Heartbeat OK',
+    body: 'Upstox gateway responding at 11ms. 248 sessions active.',
+    read: false
+  },
+];
+
 export const TopHeader: React.FC<TopHeaderProps> = ({
   activePage,
   theme,
@@ -38,7 +141,11 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
 }) => {
   const [istTime, setIstTime] = useState<string>('');
   const [showNotifications, setShowNotifications] = useState(false);
+  const [notifications, setNotifications] = useState<Notification[]>(INITIAL_NOTIFICATIONS);
+  const [activeFilter, setActiveFilter] = useState<'ALL' | NotifType>('ALL');
+  const notifRef = useRef<HTMLDivElement>(null);
 
+  // Real-time clock
   useEffect(() => {
     const updateClock = () => {
       const now = new Date();
@@ -48,6 +155,55 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
     const interval = setInterval(updateClock, 1000);
     return () => clearInterval(interval);
   }, []);
+
+  // Auto-inject live notifications every ~25 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const tpl = LIVE_NOTIF_TEMPLATES[Math.floor(Math.random() * LIVE_NOTIF_TEMPLATES.length)];
+      const now = new Date();
+      const newNotif: Notification = {
+        ...tpl,
+        id: `N${Date.now()}`,
+        time: 'just now',
+        ts: Date.now(),
+        title: tpl.type === 'TRADE' ? `Order Executed — ${['NIFTY 50', 'BANK NIFTY', 'RELIANCE'][Math.floor(Math.random() * 3)]}` : tpl.title,
+        body: tpl.type === 'TRADE'
+          ? `${Math.random() > 0.5 ? 'BUY' : 'SELL'} ${Math.random() > 0.5 ? '25' : '50'} Qty @ ₹${(24800 + Math.random() * 200).toFixed(2)} via ${['Zerodha Kite', 'Upstox FIX', 'Groww API'][Math.floor(Math.random() * 3)]}`
+          : tpl.body,
+      };
+      setNotifications(prev => [newNotif, ...prev].slice(0, 20));
+    }, 25000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Dismiss on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (notifRef.current && !notifRef.current.contains(e.target as Node)) {
+        setShowNotifications(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const unreadCount = notifications.filter(n => !n.read).length;
+
+  const filteredNotifs = activeFilter === 'ALL'
+    ? notifications
+    : notifications.filter(n => n.type === activeFilter);
+
+  const handleMarkAllRead = () => {
+    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+  };
+
+  const handleMarkRead = (id: string) => {
+    setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+  };
+
+  const handleDismiss = (id: string) => {
+    setNotifications(prev => prev.filter(n => n.id !== id));
+  };
 
   const pageTitleMap: Record<NavPage, { title: string; category: string }> = {
     overview: { title: 'Trading Overview', category: 'Dashboard' },
@@ -110,13 +266,13 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
           </kbd>
         </button>
 
-        {/* Realtime IST Clock (Indian Standard Time) */}
+        {/* Realtime IST Clock */}
         <div className="hidden md:flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-slate-100 dark:bg-[#111620] border border-slate-200 dark:border-[#1E2633] text-xs font-mono text-slate-800 dark:text-[#F1F5F9] font-bold">
           <Clock size={13} className="text-[#3B82F6]" />
-          <span>{istTime || '23:25:47 IST'}</span>
+          <span>{istTime || '11:25:00 IST'}</span>
         </div>
 
-        {/* Dark / Light Theme Toggle Button */}
+        {/* Dark / Light Theme Toggle */}
         <button
           onClick={onToggleTheme}
           className="p-1.5 rounded-md bg-slate-100 dark:bg-[#161D2A] border border-slate-200 dark:border-[#1E2633] text-amber-500 dark:text-amber-400 hover:border-amber-400 transition-all"
@@ -125,7 +281,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
           {theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
         </button>
 
-        {/* Connection Status Indicator */}
+        {/* NSE Live Status */}
         <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-[#10B981]/10 border border-[#10B981]/30 text-xs font-mono text-[#10B981]">
           <span className="w-1.5 h-1.5 rounded-full bg-[#10B981] animate-pulse"></span>
           <span className="font-bold text-[11px]">NSE LIVE</span>
@@ -141,51 +297,131 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
           <span className="hidden md:inline text-[11px]">Quant Assistant</span>
         </button>
 
-        {/* Notifications Icon with working modal */}
-        <div className="relative">
-          <button 
+        {/* ━━━━ NOTIFICATIONS BELL (Fully Workable) ━━━━ */}
+        <div className="relative" ref={notifRef}>
+          <button
             onClick={() => setShowNotifications(!showNotifications)}
-            className="p-1.5 rounded-md bg-slate-100 dark:bg-[#161D2A] border border-slate-200 dark:border-[#1E2633] text-slate-700 dark:text-[#94A3B8] relative"
+            className="relative p-1.5 rounded-md bg-slate-100 dark:bg-[#161D2A] border border-slate-200 dark:border-[#1E2633] text-slate-700 dark:text-[#94A3B8] hover:border-[#3B82F6] transition-all"
+            title="Notifications"
           >
-            <Bell size={15} />
-            <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-[#3B82F6]"></span>
+            <Bell size={15} className={unreadCount > 0 ? 'text-[#F59E0B]' : ''} />
+            {unreadCount > 0 && (
+              <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-[#EF4444] text-white text-[9px] font-bold flex items-center justify-center">
+                {unreadCount > 9 ? '9+' : unreadCount}
+              </span>
+            )}
           </button>
 
           {showNotifications && (
-            <div className="absolute right-0 mt-2 w-80 bg-white dark:bg-[#0B0E14] border border-slate-200 dark:border-[#1E2633] rounded-xl shadow-2xl p-4 z-50 font-mono text-xs animate-in fade-in zoom-in-95 duration-150">
-              <div className="flex items-center justify-between border-b border-slate-200 dark:border-[#1E2633] pb-2 mb-3">
-                <span className="font-bold text-slate-900 dark:text-[#F1F5F9]">System Notifications</span>
-                <button onClick={() => setShowNotifications(false)} className="text-slate-400 dark:text-[#64748B] hover:text-slate-900 dark:hover:text-[#F1F5F9]">
-                  <X size={14} />
-                </button>
+            <div className="absolute right-0 mt-2 w-96 bg-white dark:bg-[#0B0E14] border border-slate-200 dark:border-[#1E2633] rounded-2xl shadow-2xl z-50 animate-in fade-in zoom-in-95 duration-150 overflow-hidden font-mono">
+              
+              {/* Header */}
+              <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 dark:border-[#1E2633] bg-slate-50 dark:bg-[#111620]">
+                <div className="flex items-center gap-2">
+                  <Bell size={14} className="text-[#F59E0B]" />
+                  <span className="font-bold text-sm text-slate-900 dark:text-[#F1F5F9]">System Notifications</span>
+                  {unreadCount > 0 && (
+                    <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-[#EF4444] text-white">{unreadCount} new</span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  {unreadCount > 0 && (
+                    <button
+                      onClick={handleMarkAllRead}
+                      className="text-[10px] text-[#3B82F6] hover:underline font-bold"
+                    >
+                      Mark all read
+                    </button>
+                  )}
+                  <button onClick={() => setShowNotifications(false)} className="text-slate-400 dark:text-[#64748B] hover:text-slate-900 dark:hover:text-[#F1F5F9]">
+                    <X size={14} />
+                  </button>
+                </div>
               </div>
 
-              <div className="space-y-2">
-                <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-[#161D2A] border border-slate-200 dark:border-[#1E2633]">
-                  <div className="flex items-center gap-1 text-[#10B981] font-bold text-[11px]">
-                    <ShieldCheck size={12} />
-                    <span>Block #4281 Finalized</span>
-                  </div>
-                  <p className="text-[10px] text-slate-500 dark:text-[#94A3B8] mt-1">
-                    24 trade transactions cryptographically verified on-chain.
-                  </p>
-                </div>
+              {/* Filter Tabs */}
+              <div className="flex items-center gap-1 px-3 py-2 border-b border-slate-200 dark:border-[#1E2633] overflow-x-auto">
+                {(['ALL', 'TRADE', 'BLOCK', 'SIGNAL', 'RISK', 'SYSTEM'] as const).map(f => (
+                  <button
+                    key={f}
+                    onClick={() => setActiveFilter(f)}
+                    className={`px-2.5 py-1 rounded-md text-[10px] font-bold whitespace-nowrap transition-all ${
+                      activeFilter === f
+                        ? 'bg-[#3B82F6] text-white'
+                        : 'text-slate-500 dark:text-[#64748B] hover:text-slate-900 dark:hover:text-[#F1F5F9]'
+                    }`}
+                  >
+                    {f}
+                    {f !== 'ALL' && (
+                      <span className="ml-1 opacity-70">
+                        ({notifications.filter(n => n.type === f).length})
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
 
-                <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-[#161D2A] border border-slate-200 dark:border-[#1E2633]">
-                  <div className="flex items-center gap-1 text-[#3B82F6] font-bold text-[11px]">
-                    <Check size={12} />
-                    <span>Trade TRD-IN-00104 Executed</span>
+              {/* Notification List */}
+              <div className="max-h-80 overflow-y-auto divide-y divide-slate-100 dark:divide-[#1E2633]">
+                {filteredNotifs.length === 0 && (
+                  <div className="px-4 py-8 text-center text-xs text-slate-400 dark:text-[#64748B]">
+                    <CheckCircle2 size={24} className="mx-auto mb-2 opacity-30" />
+                    No notifications in this category
                   </div>
-                  <p className="text-[10px] text-slate-500 dark:text-[#94A3B8] mt-1">
-                    BUY 50 Qty NIFTY @ ₹24,850.40 approved by Upstox Gateway.
-                  </p>
-                </div>
+                )}
+                {filteredNotifs.map(notif => {
+                  const nc = NOTIF_COLORS[notif.type];
+                  return (
+                    <div
+                      key={notif.id}
+                      onClick={() => handleMarkRead(notif.id)}
+                      className={`px-4 py-3 cursor-pointer hover:bg-slate-50 dark:hover:bg-[#111620] transition-all flex items-start gap-3 ${
+                        !notif.read ? 'bg-blue-50/50 dark:bg-[#0A1020]' : ''
+                      }`}
+                    >
+                      <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${nc.bg}`}>
+                        <span className={nc.text}>{nc.icon}</span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className={`text-[11px] font-bold ${!notif.read ? 'text-slate-900 dark:text-[#F1F5F9]' : 'text-slate-600 dark:text-[#94A3B8]'}`}>
+                            {notif.title}
+                          </span>
+                          <div className="flex items-center gap-1 shrink-0">
+                            <span className="text-[9px] text-slate-400 dark:text-[#64748B] whitespace-nowrap">{notif.time}</span>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); handleDismiss(notif.id); }}
+                              className="text-slate-300 dark:text-[#374155] hover:text-red-500 dark:hover:text-[#EF4444] transition-all"
+                            >
+                              <X size={10} />
+                            </button>
+                          </div>
+                        </div>
+                        <p className="text-[10px] text-slate-500 dark:text-[#64748B] mt-0.5 leading-relaxed">{notif.body}</p>
+                        {!notif.read && (
+                          <div className={`w-1.5 h-1.5 rounded-full ${nc.dot} inline-block mt-1`} />
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Footer */}
+              <div className="px-4 py-2.5 border-t border-slate-200 dark:border-[#1E2633] bg-slate-50 dark:bg-[#111620] flex items-center justify-between text-[10px]">
+                <span className="text-slate-500 dark:text-[#64748B]">{notifications.length} total events logged</span>
+                <button
+                  onClick={() => setNotifications([])}
+                  className="text-[#EF4444] hover:underline font-bold"
+                >
+                  Clear all
+                </button>
               </div>
             </div>
           )}
         </div>
 
-        {/* User Auth / Profile Button - Opens Login Modal */}
+        {/* User Auth / Profile Button */}
         <button
           onClick={onToggleLoginModal}
           className="flex items-center gap-1.5 p-1 rounded-md bg-slate-100 dark:bg-[#161D2A] border border-slate-200 dark:border-[#1E2633] hover:border-[#3B82F6] transition-colors"
