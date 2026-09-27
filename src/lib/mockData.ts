@@ -466,3 +466,40 @@ export const MOCK_AUDIT_LOGS: AuditLogItem[] = [
     status: 'SUCCESS'
   }
 ];
+
+// Helper to generate dynamic, realistic candlestick series for any Indian equity or derivative asset
+export const generateAssetCandles = (symbol: string, currentPrice: number): CandlestickData[] => {
+  const base = currentPrice > 0 ? currentPrice : 24850.40;
+  const volFactor = symbol.includes('BTC') 
+    ? 0.015 
+    : (symbol.includes('CE') || symbol.includes('PE')) 
+      ? 0.035 
+      : symbol.includes('NIFTY') 
+        ? 0.003 
+        : 0.006;
+
+  const times = ['09:15', '09:30', '09:45', '10:00', '10:15', '10:30', '10:45', '11:00', '11:15', '11:30', '11:45', '12:00', '12:15', '12:30', '12:45', '13:00'];
+  
+  let price = base * (1 - volFactor * 2.2);
+  return times.map((t, idx) => {
+    const isBullish = Math.sin(idx * 0.75 + (symbol.length % 5)) >= -0.15;
+    const delta = (isBullish ? 1 : -1) * (base * volFactor * (0.35 + Math.random() * 0.85));
+    const open = Math.round(price * 100) / 100;
+    const close = Math.round((open + delta) * 100) / 100;
+    const high = Math.round((Math.max(open, close) + base * volFactor * 0.3) * 100) / 100;
+    const low = Math.round((Math.min(open, close) - base * volFactor * 0.3) * 100) / 100;
+    const vol = Math.floor(15000 + Math.random() * 40000);
+    price = close;
+
+    return {
+      time: t,
+      open,
+      high,
+      low,
+      close,
+      volume: vol,
+      ema20: Math.round(((open + close) / 2) * 100) / 100,
+      ema50: Math.round((open * 0.994) * 100) / 100
+    };
+  });
+};

@@ -87,10 +87,14 @@ export const TradingChart: React.FC<TradingChartProps> = ({
           <select
             value={selectedPair}
             onChange={(e) => onSelectPair(e.target.value)}
-            className="bg-slate-100 dark:bg-[#161D2A] border border-slate-200 dark:border-[#1E2633] text-slate-900 dark:text-[#F1F5F9] text-xs font-mono font-bold rounded-lg px-3 py-1.5 outline-none focus:border-[#3B82F6]"
+            className="bg-slate-100 dark:bg-[#161D2A] border border-slate-200 dark:border-[#1E2633] text-slate-900 dark:text-[#F1F5F9] text-xs font-mono font-bold rounded-lg px-3 py-1.5 outline-none focus:border-[#3B82F6] cursor-pointer"
           >
             <option value="NIFTY 50 Futures">NIFTY 50 Futures (NSE)</option>
             <option value="BANK NIFTY Futures">BANK NIFTY Futures (NSE)</option>
+            <option value="FIN NIFTY Futures">FIN NIFTY Futures (NSE)</option>
+            <option value="SENSEX Futures">SENSEX Futures (BSE)</option>
+            <option value="NIFTY 24800 CE">NIFTY 24800 CE (NSE F&O)</option>
+            <option value="BANKNIFTY 51500 PE">BANKNIFTY 51500 PE (NSE F&O)</option>
             <option value="RELIANCE Eq">RELIANCE Eq (NSE)</option>
             <option value="TCS Eq">TCS Eq (NSE)</option>
             <option value="BTC/INR">BTC / INR (Mudrex/CoinSwitch)</option>

@@ -56,6 +56,7 @@ interface OverviewDeskProps {
   onNavigateToVerify: (tradeId: string) => void;
   onNavigateToPage: (page: NavPage) => void;
   onOpenAIModal: () => void;
+  onRefreshData?: () => Promise<void> | void;
 }
 
 interface SectorMover {
@@ -78,7 +79,8 @@ export const OverviewDesk: React.FC<OverviewDeskProps> = ({
   onSelectTrade,
   onNavigateToVerify,
   onNavigateToPage,
-  onOpenAIModal
+  onOpenAIModal,
+  onRefreshData
 }) => {
   // Quick Order Modal
   const [isQuickOrderOpen, setIsQuickOrderOpen] = useState(false);
@@ -92,6 +94,38 @@ export const OverviewDesk: React.FC<OverviewDeskProps> = ({
   // Panic Liquidate Confirmation
   const [isLiquidateConfirmOpen, setIsLiquidateConfirmOpen] = useState(false);
 
+  // Live ticking state for Indian benchmark indices
+  const [bankNiftyPrice, setBankNiftyPrice] = useState(51340.25);
+  const [bankNiftyChange, setBankNiftyChange] = useState(0.82);
+  const [finNiftyPrice, setFinNiftyPrice] = useState(23115.80);
+  const [finNiftyChange, setFinNiftyChange] = useState(0.45);
+  const [sensexPrice, setSensexPrice] = useState(81480.10);
+  const [sensexChange, setSensexChange] = useState(0.61);
+  const [indiaVixPrice, setIndiaVixPrice] = useState(12.38);
+  const [indiaVixChange, setIndiaVixChange] = useState(-3.20);
+
+  // Manual refresh engine state
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [lastSyncTime, setLastSyncTime] = useState<string>(() => {
+    return new Date().toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour12: false }) + ' IST';
+  });
+  const [syncNotice, setSyncNotice] = useState<string | null>(null);
+
+  // India VIX Analytics Modal state
+  const [isVixModalOpen, setIsVixModalOpen] = useState(false);
+
+  // Live market walking ticks for benchmark indices
+  useEffect(() => {
+    const pulseInterval = setInterval(() => {
+      setBankNiftyPrice(prev => Math.round((prev + (Math.random() - 0.49) * 12.5) * 100) / 100);
+      setFinNiftyPrice(prev => Math.round((prev + (Math.random() - 0.49) * 5.8) * 100) / 100);
+      setSensexPrice(prev => Math.round((prev + (Math.random() - 0.49) * 18.0) * 100) / 100);
+      setIndiaVixPrice(prev => Math.max(9.5, Math.min(28.0, Math.round((prev + (Math.random() - 0.5) * 0.06) * 100) / 100)));
+    }, 2400);
+
+    return () => clearInterval(pulseInterval);
+  }, []);
+
   // Sector Data
   const [sectors, setSectors] = useState<SectorMover[]>([
     { name: 'NIFTY IT', change: 1.42, momentum: 'BULLISH' },
@@ -104,11 +138,41 @@ export const OverviewDesk: React.FC<OverviewDeskProps> = ({
 
   // Live Pulse Indices
   const indices = [
-    { name: 'NIFTY 50', val: niftyPrice, chg: niftyChange, active: selectedPair.includes('NIFTY') },
-    { name: 'BANK NIFTY', val: 51340.25, chg: 0.82, active: selectedPair.includes('BANKNIFTY') },
-    { name: 'FIN NIFTY', val: 23115.80, chg: 0.45, active: false },
-    { name: 'SENSEX', val: 81480.10, chg: 0.61, active: false },
-    { name: 'INDIA VIX', val: 12.38, chg: -3.20, active: false, isVix: true }
+    { 
+      name: 'NIFTY 50', 
+      val: niftyPrice, 
+      chg: niftyChange, 
+      active: selectedPair.includes('NIFTY') && !selectedPair.includes('BANK') && !selectedPair.includes('FIN'),
+      targetPair: 'NIFTY 50 Futures'
+    },
+    { 
+      name: 'BANK NIFTY', 
+      val: bankNiftyPrice, 
+      chg: bankNiftyChange, 
+      active: selectedPair.includes('BANKNIFTY') || selectedPair.includes('BANK NIFTY'),
+      targetPair: 'BANK NIFTY Futures'
+    },
+    { 
+      name: 'FIN NIFTY', 
+      val: finNiftyPrice, 
+      chg: finNiftyChange, 
+      active: selectedPair.includes('FIN NIFTY') || selectedPair.includes('FINNIFTY'),
+      targetPair: 'FIN NIFTY Futures'
+    },
+    { 
+      name: 'SENSEX', 
+      val: sensexPrice, 
+      chg: sensexChange, 
+      active: selectedPair.includes('SENSEX'),
+      targetPair: 'SENSEX Futures'
+    },
+    { 
+      name: 'INDIA VIX', 
+      val: indiaVixPrice, 
+      chg: indiaVixChange, 
+      active: false, 
+      isVix: true 
+    }
   ];
 
   // Update quick price when selectedPair or niftyPrice changes
@@ -116,6 +180,23 @@ export const OverviewDesk: React.FC<OverviewDeskProps> = ({
     setQuickSymbol(selectedPair);
     setQuickPrice(niftyPrice);
   }, [selectedPair, niftyPrice]);
+
+  const handleManualRefresh = async () => {
+    setIsRefreshing(true);
+    const nowStr = new Date().toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour12: false }) + ' IST';
+    try {
+      if (onRefreshData) {
+        await onRefreshData();
+      }
+      setLastSyncTime(nowStr);
+      setSyncNotice('Data Synced with Supabase');
+      setTimeout(() => setSyncNotice(null), 3000);
+    } catch (e) {
+      console.warn('Manual refresh err', e);
+    } finally {
+      setTimeout(() => setIsRefreshing(false), 500);
+    }
+  };
 
   const handleQuickSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -164,39 +245,83 @@ export const OverviewDesk: React.FC<OverviewDeskProps> = ({
   return (
     <div className="space-y-6">
       
-      {/* 1. Indian Indices Live Ticker Ribbon */}
+      {/* 1. Indian Indices Live Ticker Ribbon (Unclipped, Interactive, Live Synced) */}
       <div className="bg-white dark:bg-[#0B0E14] border border-slate-200 dark:border-[#1E2633] rounded-xl p-3 shadow-xs font-mono text-xs">
-        <div className="flex items-center gap-2 overflow-x-auto scrollbar-none pb-1">
-          <span className="text-[10px] font-bold text-slate-400 dark:text-[#64748B] flex items-center gap-1 uppercase tracking-wider shrink-0 mr-2">
+        <div className="flex flex-wrap lg:flex-nowrap items-center justify-between gap-3">
+          
+          {/* Left: Unclipped Live Market Pulse Badge */}
+          <div className="flex items-center gap-2.5 shrink-0 px-2.5 py-1.5 rounded-lg bg-blue-500/10 border border-blue-500/20 text-[#3B82F6]">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#10B981] opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-[#10B981]"></span>
+            </span>
             <Activity size={13} className="text-[#3B82F6]" />
-            Live Market Pulse:
-          </span>
-          {indices.map(idx => {
-            const isPos = idx.chg >= 0;
-            return (
-              <button
-                key={idx.name}
-                onClick={() => {
-                  if (idx.name === 'NIFTY 50') onSelectPair('NIFTY 24800 CE');
-                  if (idx.name === 'BANK NIFTY') onSelectPair('BANKNIFTY 51500 PE');
-                }}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-all shrink-0 ${
-                  idx.active
-                    ? 'border-[#3B82F6] bg-[#3B82F6]/10 text-slate-900 dark:text-[#F1F5F9]'
-                    : 'border-slate-200 dark:border-[#1E2633] bg-slate-50 dark:bg-[#111620] hover:border-slate-300 dark:hover:border-[#2E384D]'
-                }`}
-              >
-                <span className="font-bold text-slate-700 dark:text-[#CBD5E1]">{idx.name}</span>
-                <span className="font-bold text-slate-900 dark:text-[#F8FAFC]">
-                  {idx.val.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                </span>
-                <span className={`text-[10px] font-bold flex items-center ${isPos ? 'text-[#10B981]' : 'text-[#EF4444]'}`}>
-                  {isPos ? <TrendingUp size={10} className="mr-0.5" /> : <TrendingDown size={10} className="mr-0.5" />}
-                  {isPos ? '+' : ''}{idx.chg.toFixed(2)}%
-                </span>
-              </button>
-            );
-          })}
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-800 dark:text-[#E2E8F0]">
+              LIVE MARKET PULSE
+            </span>
+          </div>
+
+          {/* Center: Workable Clickable Indices with Live Ticks */}
+          <div className="flex items-center gap-2 overflow-x-auto scrollbar-none py-0.5 min-w-0 flex-1">
+            {indices.map(idx => {
+              const isPos = idx.chg >= 0;
+              return (
+                <button
+                  key={idx.name}
+                  onClick={() => {
+                    if (idx.isVix) {
+                      setIsVixModalOpen(true);
+                    } else if (idx.targetPair) {
+                      onSelectPair(idx.targetPair);
+                    }
+                  }}
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-all shrink-0 cursor-pointer text-left ${
+                    idx.active
+                      ? 'border-[#3B82F6] bg-[#3B82F6]/15 ring-1 ring-[#3B82F6]/40 text-slate-900 dark:text-[#F1F5F9]'
+                      : 'border-slate-200 dark:border-[#1E2633] bg-slate-50 dark:bg-[#111620] hover:border-blue-400 dark:hover:border-[#3B82F6]/50'
+                  }`}
+                  title={idx.isVix ? 'Click to inspect India VIX volatility analytics' : `Switch active chart & trading view to ${idx.name}`}
+                >
+                  <div className="flex flex-col">
+                    <span className="text-[10px] text-slate-500 dark:text-[#94A3B8] font-semibold">{idx.name}</span>
+                    <span className="font-bold text-slate-900 dark:text-[#F8FAFC]">
+                      {idx.isVix ? '' : '₹'}{idx.val.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                  <span className={`text-[10px] font-bold flex items-center px-1.5 py-0.5 rounded ${
+                    isPos ? 'text-[#10B981] bg-[#10B981]/10' : 'text-[#EF4444] bg-[#EF4444]/10'
+                  }`}>
+                    {isPos ? <TrendingUp size={10} className="mr-0.5" /> : <TrendingDown size={10} className="mr-0.5" />}
+                    {isPos ? '+' : ''}{idx.chg.toFixed(2)}%
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Right: API Sync Status & Manual Refresh Button */}
+          <div className="flex items-center gap-2 shrink-0">
+            {syncNotice ? (
+              <span className="text-[10px] text-[#10B981] bg-[#10B981]/10 border border-[#10B981]/20 px-2 py-1 rounded font-bold animate-in fade-in">
+                ✓ {syncNotice}
+              </span>
+            ) : (
+              <div className="hidden sm:flex items-center gap-1.5 px-2 py-1 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 text-[10px] font-mono">
+                <CheckCircle2 size={11} className="text-emerald-500" />
+                <span>SYNCED: {lastSyncTime.split(' ')[0]}</span>
+              </div>
+            )}
+            <button
+              onClick={handleManualRefresh}
+              disabled={isRefreshing}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-[#161D2A] dark:hover:bg-[#1E2633] border border-slate-200 dark:border-[#1E2633] text-xs font-mono font-bold transition-all text-slate-700 dark:text-slate-300 disabled:opacity-50 cursor-pointer shadow-xs active:scale-95"
+              title="Refresh all market quotes, active orders & Supabase ledger"
+            >
+              <RefreshCw size={12} className={isRefreshing ? 'animate-spin text-[#3B82F6]' : 'text-slate-500 dark:text-[#94A3B8]'} />
+              <span>{isRefreshing ? 'Syncing...' : 'Refresh'}</span>
+            </button>
+          </div>
+
         </div>
       </div>
 
@@ -502,6 +627,62 @@ export const OverviewDesk: React.FC<OverviewDeskProps> = ({
                 <span>Confirm Liquidate</span>
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* INDIA VIX VOLATILITY & OPTIONS REGIME MODAL */}
+      {isVixModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in">
+          <div className="bg-white dark:bg-[#0B0E14] border border-slate-200 dark:border-[#1E2633] rounded-2xl w-full max-w-lg p-6 shadow-2xl font-mono space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-[#1E2633] pb-3">
+              <div className="flex items-center gap-2">
+                <Activity size={18} className="text-amber-500" />
+                <h3 className="font-bold text-base text-slate-900 dark:text-[#F1F5F9]">INDIA VIX Volatility Terminal</h3>
+              </div>
+              <button 
+                onClick={() => setIsVixModalOpen(false)}
+                className="p-1 rounded-md hover:bg-slate-100 dark:hover:bg-[#161D2A] text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 text-xs">
+              <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-[#111620] border border-slate-200 dark:border-[#1E2633]">
+                <div className="text-slate-400 text-[10px] font-bold">CURRENT INDIA VIX</div>
+                <div className="text-2xl font-bold text-amber-500 mt-1">{indiaVixPrice.toFixed(2)}</div>
+                <div className="text-[10px] text-emerald-500 font-bold mt-1">Normal Volatility Regime (10 - 15)</div>
+              </div>
+              <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-[#111620] border border-slate-200 dark:border-[#1E2633]">
+                <div className="text-slate-400 text-[10px] font-bold">IMPLIED DAILY SWING</div>
+                <div className="text-2xl font-bold text-slate-900 dark:text-[#F1F5F9] mt-1">
+                  ±{((indiaVixPrice / Math.sqrt(252))).toFixed(2)}%
+                </div>
+                <div className="text-[10px] text-slate-500 mt-1">
+                  ±{Math.round(niftyPrice * (indiaVixPrice / Math.sqrt(252)) / 100)} NIFTY Points
+                </div>
+              </div>
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-blue-500/10 border border-blue-500/20 text-xs text-slate-700 dark:text-[#94A3B8] space-y-1.5 font-sans">
+              <div className="font-bold font-mono text-[#3B82F6] flex items-center gap-1.5">
+                <CheckCircle2 size={13} /> SEBI Algorithmic Options Guidance
+              </div>
+              <p className="text-[11px] leading-relaxed">
+                India VIX below 14 indicates low implied option premium risk. Recommended quantitative strategies: <strong>VWAP Mean Reversion</strong> and <strong>Iron Condor credit spreads</strong> on weekly expiries.
+              </p>
+            </div>
+
+            <button
+              onClick={() => {
+                setIsVixModalOpen(false);
+                onSelectPair('NIFTY 24800 CE');
+              }}
+              className="w-full py-2.5 rounded-xl bg-[#3B82F6] hover:bg-[#2563EB] text-white font-bold text-xs transition-all shadow-md cursor-pointer"
+            >
+              Analyze NIFTY 24800 CE Options Chain
+            </button>
           </div>
         </div>
       )}

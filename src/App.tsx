@@ -5,7 +5,8 @@ import {
   MOCK_TRADES, 
   MOCK_POSITIONS, 
   MOCK_SIGNAL, 
-  MOCK_BLOCKS 
+  MOCK_BLOCKS,
+  generateAssetCandles
 } from './lib/mockData';
 import { 
   fetchTradesFromDB, 
@@ -71,30 +72,118 @@ export function App() {
   const [niftyChange, setNiftyChange] = useState(0.64);
   const [selectedPair, setSelectedPair] = useState('NIFTY 50 Futures');
   const [candles, setCandles] = useState<CandlestickData[]>(INITIAL_CANDLESTICKS);
-  const [positions, setPositions] = useState<ActivePosition[]>(MOCK_POSITIONS);
-  const [trades, setTrades] = useState<TradeRecord[]>(MOCK_TRADES);
-  const [blocks, setBlocks] = useState<BlockHeader[]>(MOCK_BLOCKS);
-
-  // Initial fetch from Supabase database
-  useEffect(() => {
-    let isMounted = true;
-    async function initSupabaseData() {
-      try {
-        const [dbPositions, dbTrades, dbBlocks] = await Promise.all([
-          fetchPositionsFromDB(),
-          fetchTradesFromDB(),
-          fetchBlocksFromDB()
-        ]);
-        if (!isMounted) return;
-        if (dbPositions && dbPositions.length > 0) setPositions(dbPositions);
-        if (dbTrades && dbTrades.length > 0) setTrades(dbTrades);
-        if (dbBlocks && dbBlocks.length > 0) setBlocks(dbBlocks);
-      } catch (err) {
-        console.warn('Supabase initial fetch gracefully falling back to defaults.', err);
+  const [positions, setPositions] = useState<ActivePosition[]>(() => {
+    try {
+      const saved = localStorage.getItem('tradechain_positions');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
       }
+    } catch (e) {
+      console.warn('Failed to load positions from localStorage', e);
     }
-    initSupabaseData();
-    return () => { isMounted = false; };
+    return MOCK_POSITIONS;
+  });
+
+  const [trades, setTrades] = useState<TradeRecord[]>(() => {
+    try {
+      const saved = localStorage.getItem('tradechain_trades');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {
+      console.warn('Failed to load trades from localStorage', e);
+    }
+    return MOCK_TRADES;
+  });
+
+  const [blocks, setBlocks] = useState<BlockHeader[]>(() => {
+    try {
+      const saved = localStorage.getItem('tradechain_blocks');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {
+      console.warn('Failed to load blocks from localStorage', e);
+    }
+    return MOCK_BLOCKS;
+  });
+
+  // Sync state mutations to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem('tradechain_positions', JSON.stringify(positions));
+    } catch {}
+  }, [positions]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('tradechain_trades', JSON.stringify(trades));
+    } catch {}
+  }, [trades]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('tradechain_blocks', JSON.stringify(blocks));
+    } catch {}
+  }, [blocks]);
+
+  // Dynamic asset candle and price generator when selectedPair switches
+  useEffect(() => {
+    let basePrice = 24850.40;
+    let changePct = 0.64;
+
+    if (selectedPair.includes('BANK NIFTY') || selectedPair.includes('BANKNIFTY')) {
+      basePrice = 51340.25;
+      changePct = 0.82;
+    } else if (selectedPair.includes('FIN NIFTY') || selectedPair.includes('FINNIFTY')) {
+      basePrice = 23115.80;
+      changePct = 0.45;
+    } else if (selectedPair.includes('SENSEX')) {
+      basePrice = 81480.10;
+      changePct = 0.61;
+    } else if (selectedPair.includes('RELIANCE')) {
+      basePrice = 3042.80;
+      changePct = 0.85;
+    } else if (selectedPair.includes('TCS')) {
+      basePrice = 4290.50;
+      changePct = -0.32;
+    } else if (selectedPair.includes('BTC')) {
+      basePrice = 5785400.00;
+      changePct = 2.85;
+    } else if (selectedPair.includes('24800 CE')) {
+      basePrice = 168.20;
+      changePct = 18.04;
+    } else if (selectedPair.includes('51500 PE')) {
+      basePrice = 312.40;
+      changePct = 9.61;
+    }
+
+    setNiftyPrice(basePrice);
+    setNiftyChange(changePct);
+    setCandles(generateAssetCandles(selectedPair, basePrice));
+  }, [selectedPair]);
+
+  // Initial fetch & synchronization from Supabase database
+  const refreshSupabaseData = async () => {
+    try {
+      const [dbPositions, dbTrades, dbBlocks] = await Promise.all([
+        fetchPositionsFromDB(),
+        fetchTradesFromDB(),
+        fetchBlocksFromDB()
+      ]);
+      if (dbPositions && dbPositions.length > 0) setPositions(dbPositions);
+      if (dbTrades && dbTrades.length > 0) setTrades(dbTrades);
+      if (dbBlocks && dbBlocks.length > 0) setBlocks(dbBlocks);
+    } catch (err) {
+      console.warn('Supabase fetch gracefully falling back to local cache.', err);
+    }
+  };
+
+  useEffect(() => {
+    refreshSupabaseData();
   }, []);
 
   // Toggle Theme handler
@@ -299,6 +388,7 @@ export function App() {
             }}
             onNavigateToPage={(page) => setActivePage(page)}
             onOpenAIModal={() => setIsAIAssistantOpen(true)}
+            onRefreshData={refreshSupabaseData}
           />
         );
 
