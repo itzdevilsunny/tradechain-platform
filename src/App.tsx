@@ -17,6 +17,8 @@ import { AIAssistantModal } from './components/layout/AIAssistantModal';
 import { LoginModal } from './components/layout/LoginModal';
 import { FloatingDraggableAIChat } from './components/layout/FloatingDraggableAIChat';
 
+import { MarketsTerminal } from './components/markets/MarketsTerminal';
+
 // Workspace View Components
 import { KPICards } from './components/dashboard/KPICards';
 import { TradingChart } from './components/dashboard/TradingChart';
@@ -116,9 +118,23 @@ export function App() {
   // Render view router according to activePage
   const renderWorkspaceContent = () => {
     switch (activePage) {
+      case 'markets':
+        return (
+          <MarketsTerminal
+            candles={candles}
+            niftyPrice={niftyPrice}
+            niftyChange={niftyChange}
+            selectedPair={selectedPair}
+            onSelectPair={setSelectedPair}
+            onOpenVerifyPage={(tradeId) => {
+              setSelectedTradeIdForVerify(tradeId);
+              setActivePage('verify');
+            }}
+          />
+        );
+
       case 'overview':
       case 'bot':
-      case 'markets':
         return (
           <div className="space-y-6">
             {/* Overview Header Banner */}
