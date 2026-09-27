@@ -27,6 +27,14 @@ interface MarketsTerminalProps {
   selectedPair: string;
   onSelectPair: (pair: string) => void;
   onOpenVerifyPage?: (tradeId: string) => void;
+  onExecuteOrder?: (order: {
+    symbol: string;
+    side: 'BUY' | 'SELL';
+    type: 'MARKET' | 'LIMIT' | 'SL-M';
+    qty: number;
+    price: number;
+    broker: string;
+  }) => void;
 }
 
 interface WatchlistItem {
@@ -63,7 +71,8 @@ export const MarketsTerminal: React.FC<MarketsTerminalProps> = ({
   niftyChange,
   selectedPair,
   onSelectPair,
-  onOpenVerifyPage
+  onOpenVerifyPage,
+  onExecuteOrder
 }) => {
   // Watchlist state
   const [watchlist, setWatchlist] = useState<WatchlistItem[]>([
@@ -154,7 +163,28 @@ export const MarketsTerminal: React.FC<MarketsTerminalProps> = ({
   const handlePlaceOrder = (e: React.FormEvent) => {
     e.preventDefault();
     const hash = `0x${Math.random().toString(16).substring(2, 10)}${Math.random().toString(16).substring(2, 10)}`;
-    setOrderSuccessMsg(`Order Executed! ${orderSide} ${orderQty} Qty ${selectedPair} @ ₹${activeWatchItem.price.toLocaleString('en-IN')}. Hash: ${hash.substring(0, 14)}...`);
+    const price = activeWatchItem.price;
+
+    if (onExecuteOrder) {
+      onExecuteOrder({
+        symbol: selectedPair,
+        side: orderSide,
+        type: orderType,
+        qty: orderQty,
+        price,
+        broker: selectedBroker
+      });
+    }
+
+    // Append to live tape stream
+    const now = new Date();
+    const timeStr = now.toLocaleTimeString('en-IN', { hour12: false });
+    setTapeStream(prev => [
+      { time: timeStr, price, qty: orderQty, side: orderSide, broker: selectedBroker.split(' ')[0], hash: hash.substring(0, 10) + '...' },
+      ...prev.slice(0, 11)
+    ]);
+
+    setOrderSuccessMsg(`Order Executed! ${orderSide} ${orderQty} Qty ${selectedPair} @ ₹${price.toLocaleString('en-IN')}. Hash: ${hash.substring(0, 14)}...`);
     setTimeout(() => setOrderSuccessMsg(null), 6000);
   };
 
@@ -642,15 +672,15 @@ export const MarketsTerminal: React.FC<MarketsTerminalProps> = ({
                     value={orderQty}
                     onChange={(e) => setOrderQty(Number(e.target.value))}
                     min="1"
-                    className="flex-1 bg-slate-100 dark:bg-[#111620] border border-slate-200 dark:border-[#1E2633] rounded-lg px-3 py-1.5 text-xs text-slate-900 dark:text-[#F1F5F9] font-bold outline-none"
+                    className="w-20 bg-slate-100 dark:bg-[#111620] border border-slate-200 dark:border-[#1E2633] rounded-lg px-2 py-1.5 text-xs text-slate-900 dark:text-[#F1F5F9] font-bold outline-none text-center"
                   />
-                  <div className="flex gap-1">
+                  <div className="flex-1 grid grid-cols-3 gap-1">
                     {[25, 50, 100].map(qty => (
                       <button
                         key={qty}
                         type="button"
                         onClick={() => setOrderQty(qty)}
-                        className="px-2 py-1 rounded bg-slate-100 dark:bg-[#161D2A] border border-slate-200 dark:border-[#1E2633] text-[10px] font-bold text-slate-700 dark:text-[#94A3B8]"
+                        className="py-1 rounded bg-slate-100 dark:bg-[#161D2A] border border-slate-200 dark:border-[#1E2633] text-[10px] font-bold text-slate-700 dark:text-[#94A3B8] text-center"
                       >
                         {qty}
                       </button>

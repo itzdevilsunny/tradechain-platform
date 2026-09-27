@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { NavPage, TradeRecord, ActivePosition, CandlestickData } from './types/trading';
+import { NavPage, TradeRecord, ActivePosition, BlockHeader, CandlestickData } from './types/trading';
 import { 
   INITIAL_CANDLESTICKS, 
   MOCK_TRADES, 
@@ -57,6 +57,8 @@ export function App() {
   const [selectedPair, setSelectedPair] = useState('NIFTY 50 Futures');
   const [candles, setCandles] = useState<CandlestickData[]>(INITIAL_CANDLESTICKS);
   const [positions, setPositions] = useState<ActivePosition[]>(MOCK_POSITIONS);
+  const [trades, setTrades] = useState<TradeRecord[]>(MOCK_TRADES);
+  const [blocks, setBlocks] = useState<BlockHeader[]>(MOCK_BLOCKS);
 
   // Toggle Theme handler
   useEffect(() => {
@@ -101,10 +103,88 @@ export function App() {
         last.low = Math.min(last.low, last.close);
         return [...prev.slice(0, prev.length - 1), last];
       });
+
+      // Update positions unrealized PnL based on live tick
+      setPositions(prev => prev.map(p => {
+        const pnl = p.side === 'BUY' 
+          ? Math.round((niftyPrice - p.entryPrice) * p.quantity * 100) / 100
+          : Math.round((p.entryPrice - niftyPrice) * p.quantity * 100) / 100;
+        const pnlPct = Math.round((pnl / (p.entryPrice * p.quantity)) * 10000) / 100;
+        return { ...p, currentPrice: niftyPrice, unrealizedPnl: pnl, unrealizedPnlPercent: pnlPct };
+      }));
     }, 3000);
 
     return () => clearInterval(ticker);
-  }, []);
+  }, [niftyPrice]);
+
+  // Order Execution Handler across platform
+  const handleExecuteOrder = (order: {
+    symbol: string;
+    side: 'BUY' | 'SELL';
+    type: 'MARKET' | 'LIMIT' | 'SL-M';
+    qty: number;
+    price: number;
+    broker: string;
+  }) => {
+    const newTradeId = `TRD-IN-${Math.floor(10000 + Math.random() * 90000)}`;
+    const now = new Date();
+    const timeStr = now.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour12: false }) + ' IST';
+    const txHash = `0x${Math.random().toString(16).substring(2, 10)}${Math.random().toString(16).substring(2, 10)}`;
+    const totalVal = Math.round(order.price * order.qty * 100) / 100;
+
+    const newPosition: ActivePosition = {
+      id: `POS-${Math.floor(100 + Math.random() * 900)}`,
+      asset: order.symbol,
+      side: order.side,
+      entryPrice: order.price,
+      currentPrice: order.price,
+      quantity: order.qty,
+      totalValue: totalVal,
+      unrealizedPnl: 0,
+      unrealizedPnlPercent: 0,
+      stopLoss: order.side === 'BUY' ? Math.round(order.price * 0.985 * 100) / 100 : Math.round(order.price * 1.015 * 100) / 100,
+      takeProfit: order.side === 'BUY' ? Math.round(order.price * 1.03 * 100) / 100 : Math.round(order.price * 0.97 * 100) / 100,
+      openedAt: timeStr
+    };
+    setPositions(prev => [newPosition, ...prev]);
+
+    const newTradeRecord: TradeRecord = {
+      id: newTradeId,
+      asset: order.symbol,
+      strategy: `${order.broker} FIX Route`,
+      side: order.side,
+      price: order.price,
+      quantity: order.qty,
+      totalValue: totalVal,
+      pnl: 0,
+      pnlPercentage: 0,
+      stopLoss: newPosition.stopLoss,
+      takeProfit: newPosition.takeProfit,
+      status: 'ACTIVE',
+      timestamp: timeStr,
+      txHash: txHash,
+      blockNumber: 4282,
+      blockHash: '0x8f2a391eb4d02a01',
+      merkleRoot: `0x${Math.random().toString(16).substring(2, 14)}`,
+      digitalSignature: `0xsig${Math.random().toString(16).substring(2, 12)}`,
+      isVerified: true
+    };
+    setTrades(prev => [newTradeRecord, ...prev]);
+
+    const newBlock: BlockHeader = {
+      blockNumber: 4282,
+      blockHash: txHash,
+      previousHash: '0x8f2a391eb4d02a01',
+      timestamp: timeStr,
+      txCount: 25,
+      merkleRoot: `0x${Math.random().toString(16).substring(2, 14)}`,
+      validator: 'TradeChain NSE Node #1',
+      nonce: 104928,
+      status: 'VALID',
+      trades: [newTradeRecord]
+    };
+    setBlocks(prev => [newBlock, ...prev.slice(0, 9)]);
+  };
 
   // Close position handler
   const handleClosePosition = (posId: string) => {
@@ -126,6 +206,7 @@ export function App() {
             niftyChange={niftyChange}
             selectedPair={selectedPair}
             onSelectPair={setSelectedPair}
+            onExecuteOrder={handleExecuteOrder}
             onOpenVerifyPage={(tradeId) => {
               setSelectedTradeIdForVerify(tradeId);
               setActivePage('verify');
@@ -170,12 +251,12 @@ export function App() {
 
             {/* 5 KPI Cards */}
             <KPICards
-              portfolioValue={117850.42}
-              todayPnl={2340.18}
+              portfolioValue={117850.42 + positions.reduce((acc, p) => acc + p.unrealizedPnl, 0)}
+              todayPnl={2340.18 + positions.reduce((acc, p) => acc + p.unrealizedPnl, 0)}
               todayPnlPct={2.04}
               activeTradesCount={positions.length}
-              buyCount={2}
-              sellCount={1}
+              buyCount={positions.filter(p => p.side === 'BUY').length}
+              sellCount={positions.filter(p => p.side === 'SELL').length}
               winRate={71.4}
               chainIntegrity={100}
             />
@@ -204,7 +285,7 @@ export function App() {
             <ActivePositionsTable
               positions={positions}
               onSelectPosition={(posId) => {
-                const trd = MOCK_TRADES.find(t => t.id === 'TRD-IN-00104');
+                const trd = trades.find(t => t.id === 'TRD-IN-00104') || trades[0];
                 if (trd) setSelectedTrade(trd);
               }}
               onClosePosition={handleClosePosition}
@@ -212,7 +293,7 @@ export function App() {
 
             {/* Recent Trades Table */}
             <RecentTradesTable
-              trades={MOCK_TRADES}
+              trades={trades}
               onSelectTrade={(trade) => setSelectedTrade(trade)}
               onNavigateToVerify={(tradeId) => {
                 setSelectedTradeIdForVerify(tradeId);
@@ -227,10 +308,10 @@ export function App() {
       case 'transactions':
         return (
           <BlockchainOverview
-            blocks={MOCK_BLOCKS}
-            trades={MOCK_TRADES}
+            blocks={blocks}
+            trades={trades}
             onSelectTrade={(tradeId) => {
-              const trd = MOCK_TRADES.find(t => t.id === tradeId) || MOCK_TRADES[0];
+              const trd = trades.find(t => t.id === tradeId) || trades[0];
               setSelectedTrade(trd);
             }}
             onNavigateToVerify={(tradeId) => {
@@ -244,7 +325,7 @@ export function App() {
         return (
           <TradeVerificationPage
             initialTradeId={selectedTradeIdForVerify}
-            trades={MOCK_TRADES}
+            trades={trades}
           />
         );
 
