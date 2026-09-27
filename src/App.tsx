@@ -18,6 +18,7 @@ import { LoginModal } from './components/layout/LoginModal';
 import { FloatingDraggableAIChat } from './components/layout/FloatingDraggableAIChat';
 
 import { MarketsTerminal } from './components/markets/MarketsTerminal';
+import { TradingBotControl } from './components/bot/TradingBotControl';
 
 // Workspace View Components
 import { KPICards } from './components/dashboard/KPICards';
@@ -214,8 +215,22 @@ export function App() {
           />
         );
 
-      case 'overview':
       case 'bot':
+        return (
+          <TradingBotControl
+            niftyPrice={niftyPrice}
+            niftyChange={niftyChange}
+            positions={positions}
+            trades={trades}
+            onExecuteOrder={handleExecuteOrder}
+            onOpenVerifyPage={(tradeId) => {
+              setSelectedTradeIdForVerify(tradeId);
+              setActivePage('verify');
+            }}
+          />
+        );
+
+      case 'overview':
         return (
           <div className="space-y-6">
             {/* Overview Header Banner */}
