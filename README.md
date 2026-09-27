@@ -77,7 +77,7 @@ Every order placement, strategy mutation, stop-loss trigger, and position liquid
 
 ## 📐 System Architecture
 
-```mermaid
+```
 flowchart TD
     subgraph MarketIngestion ["1. Market Data & Broker Ingestion"]
         NSE["NSE / BSE Tick Stream"] --> FIX["NSE FIX 4.4 Engine"]
