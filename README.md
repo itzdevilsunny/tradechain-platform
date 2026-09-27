@@ -3,6 +3,8 @@
 <div align="center">
 
 [![Live Production Vercel](https://img.shields.io/badge/Deployment-tradechain--platform.vercel.app-10B981?style=for-the-badge&logo=vercel&logoColor=white)](https://tradechain-platform.vercel.app/)
+[![Live Production Render](https://img.shields.io/badge/Render-tradechain--platform.onrender.com-46E3B7?style=for-the-badge&logo=render&logoColor=black)](https://tradechain-platform.onrender.com)
+[![Supabase Database](https://img.shields.io/badge/Database-Supabase%20PostgreSQL-3ECF8E?style=for-the-badge&logo=supabase&logoColor=white)](https://supabase.com)
 [![React 19](https://img.shields.io/badge/React-19.0-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.7-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Vite](https://img.shields.io/badge/Vite-6.1-646CFF?style=for-the-badge&logo=vite&logoColor=white)](https://vitejs.dev/)
@@ -13,7 +15,7 @@
   <strong>An institutional-grade algorithmic trading workstation, backtesting sandbox, and Proof-of-Authority (PoA) blockchain verification engine localized for the Indian Equity / F&O markets (NSE, BSE) and digital asset derivatives.</strong>
 </p>
 
-[🌐 Live Web Application](https://tradechain-platform.vercel.app/) • [📦 GitHub Repository](https://github.com/itzdevilsunny/tradechain-platform) • [📖 Documentation](#-system-architecture) • [⚡ Quick Start](#-quick-start--local-setup)
+[🌐 Vercel Live Web App](https://tradechain-platform.vercel.app/) • [⚡ Render Cloud Service](https://tradechain-platform.onrender.com) • [📦 GitHub Repository](https://github.com/itzdevilsunny/tradechain-platform) • [📖 Documentation](#-system-architecture) • [🗄️ Database Setup](#-supabase-postgresql-database-architecture) • [⚡ Quick Start](#-quick-start--local-setup)
 
 </div>
 
@@ -114,15 +116,43 @@ flowchart TD
 | Layer | Technology | Purpose |
 | :--- | :--- | :--- |
 | **Frontend Framework** | **React 19.0.0** + **TypeScript 5.7** | Core component state, strict typing, responsive rendering |
-| **Build & Tooling** | **Vite 6.1** | Sub-second HMR, optimized production bundling |
+| **Build & Tooling** | **Vite 6.1** | Sub-second HMR, optimized production bundling, proxy configuration |
+| **Database & Realtime** | **Supabase (PostgreSQL 15)** | Relational storage for trades, positions, blocks, and realtime publications |
 | **Styling & Design** | **Tailwind CSS 3.4** + Vanilla CSS | Institutional dark/light themes, tactile 3D linear buttons |
 | **Data Visualization** | **Recharts 2.15** + HTML5 Canvas | Real-time candlestick charts, equity curves, drawdown areas |
 | **Icons & Assets** | **Lucide React** | Consistent institutional icon library |
 | **AI Copilot** | **Groq LLaMA-3.3-70b** + **Gemini 1.5 Flash** | Quantitative trade reasoning and market sentiment |
 | **Cryptography** | **SHA-256**, **ECDSA secp256k1**, **Merkle Trees** | Immutability, non-repudiation, tamper detection |
-| **Deployment** | **Vercel** | Edge network hosting, continuous deployment CI/CD |
+| **Cloud Deployments** | **Vercel** + **Render** | Dual edge & container hosting with automated GitHub CI/CD |
 
 ---
+
+## 🗄️ Supabase PostgreSQL Database Architecture
+
+TradeChain utilizes a production-grade Supabase PostgreSQL cluster with **11 interconnected tables**, strict check constraints, safe Row Level Security (RLS) policies, and Realtime WebSocket replication:
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│                     TRADECHAIN DATABASE SCHEMA                         │
+├─────────────────────┬──────────────────────────┬───────────────────────┤
+│ Active Positions    │ public.positions         │ Live Margin Tracking  │
+│ Audited Ledger      │ public.trades            │ Cryptographic Hashes  │
+│ Consortium Blocks   │ public.blocks            │ PoA Block Headers     │
+│ Strategies Registry │ public.strategies        │ Parameters & Hashes   │
+│ Backtest Sessions   │ public.backtests         │ Equity Curves & Stats │
+│ Risk Safeguards     │ public.risk_rules        │ SEBI Capital Limits   │
+│ Enterprise Audit    │ public.audit_logs        │ Append-Only Event Log │
+│ Copilot Signals     │ public.ai_signals        │ Quant Rationale Logs  │
+│ Market Candles      │ public.market_candles    │ 15m/1D Historical     │
+│ Validator Nodes     │ public.validator_nodes   │ 14 Consortium Keys    │
+│ System Health       │ public.system_services   │ Uptime & Heartbeats   │
+└─────────────────────┴──────────────────────────┴───────────────────────┘
+```
+
+The master database schema is located at [`supabase/schema.sql`](supabase/schema.sql). It is completely idempotent and safe to re-run in the Supabase SQL editor:
+* Automatic `DROP POLICY IF EXISTS` guards to prevent policy collision errors.
+* Safe Realtime replication publications wrapped in `EXCEPTION WHEN duplicate_object THEN NULL;`.
+* Comprehensive seed data for active F&O contracts (`NIFTY 24800 CE`, `BANKNIFTY 51500 PE`), PoA blocks, and validator keys.
 
 ## 🚀 Quick Start & Local Setup
 
@@ -183,10 +213,15 @@ TradeChain utilizes a 6-stage mathematical attestation model:
 
 ---
 
-## 🌐 Live Deployment
+## 🌐 Live Deployments & Cloud Infrastructure
 
-The platform is continuously deployed on Vercel:
-**[https://tradechain-platform.vercel.app/](https://tradechain-platform.vercel.app/)**
+TradeChain is continuously deployed across two enterprise cloud architectures with automated GitHub push CI/CD:
+
+| Target Platform | URL | Role / Architecture | Status |
+| :--- | :--- | :--- | :--- |
+| **Vercel Production Edge** | **[tradechain-platform.vercel.app](https://tradechain-platform.vercel.app/)** | Primary Global Edge CDN & Web Application | [![Vercel](https://img.shields.io/badge/Vercel-Operational-10B981?style=flat-square&logo=vercel)](https://tradechain-platform.vercel.app/) |
+| **Render Cloud Service** | **[tradechain-platform.onrender.com](https://tradechain-platform.onrender.com/)** | Full Container Node Preview Server with WebSocket Support | [![Render](https://img.shields.io/badge/Render-Operational-46E3B7?style=flat-square&logo=render)](https://tradechain-platform.onrender.com/) |
+| **Supabase PostgreSQL** | **[trrdxwefrnjlzkrrnjdp.supabase.co](https://trrdxwefrnjlzkrrnjdp.supabase.co)** | Relational DB Cluster with Realtime Publication WebSockets | [![Supabase](https://img.shields.io/badge/Supabase-Connected-3ECF8E?style=flat-square&logo=supabase)](https://supabase.com) |
 
 ---
 
