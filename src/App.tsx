@@ -357,7 +357,14 @@ export function App() {
         );
 
       case 'risk':
-        return <RiskManagementCenter />;
+        return (
+          <RiskManagementCenter
+            positions={positions}
+            trades={trades}
+            niftyPrice={niftyPrice}
+            onClosePosition={handleClosePosition}
+          />
+        );
 
       case 'portfolio':
       case 'analytics':
