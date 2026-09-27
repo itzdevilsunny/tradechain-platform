@@ -361,7 +361,16 @@ export function App() {
 
       case 'portfolio':
       case 'analytics':
-        return <PortfolioOverview />;
+        return (
+          <PortfolioOverview
+            positions={positions}
+            trades={trades}
+            niftyPrice={niftyPrice}
+            onClosePosition={handleClosePosition}
+            onExecuteOrder={handleExecuteOrder}
+            onNavigateToMarkets={() => setActivePage('markets')}
+          />
+        );
 
       case 'monitoring':
         return <SystemHealthPage />;
