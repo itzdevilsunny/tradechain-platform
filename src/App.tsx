@@ -7,6 +7,16 @@ import {
   MOCK_SIGNAL, 
   MOCK_BLOCKS 
 } from './lib/mockData';
+import { 
+  fetchTradesFromDB, 
+  fetchPositionsFromDB, 
+  fetchBlocksFromDB, 
+  saveTradeToDB, 
+  savePositionToDB, 
+  deletePositionFromDB, 
+  saveBlockToDB, 
+  recordAuditLog 
+} from './lib/supabase';
 
 // Layout Components
 import { Sidebar } from './components/layout/Sidebar';
@@ -64,6 +74,28 @@ export function App() {
   const [positions, setPositions] = useState<ActivePosition[]>(MOCK_POSITIONS);
   const [trades, setTrades] = useState<TradeRecord[]>(MOCK_TRADES);
   const [blocks, setBlocks] = useState<BlockHeader[]>(MOCK_BLOCKS);
+
+  // Initial fetch from Supabase database
+  useEffect(() => {
+    let isMounted = true;
+    async function initSupabaseData() {
+      try {
+        const [dbPositions, dbTrades, dbBlocks] = await Promise.all([
+          fetchPositionsFromDB(),
+          fetchTradesFromDB(),
+          fetchBlocksFromDB()
+        ]);
+        if (!isMounted) return;
+        if (dbPositions && dbPositions.length > 0) setPositions(dbPositions);
+        if (dbTrades && dbTrades.length > 0) setTrades(dbTrades);
+        if (dbBlocks && dbBlocks.length > 0) setBlocks(dbBlocks);
+      } catch (err) {
+        console.warn('Supabase initial fetch gracefully falling back to defaults.', err);
+      }
+    }
+    initSupabaseData();
+    return () => { isMounted = false; };
+  }, []);
 
   // Toggle Theme handler
   useEffect(() => {
@@ -189,12 +221,25 @@ export function App() {
       trades: [newTradeRecord]
     };
     setBlocks(prev => [newBlock, ...prev.slice(0, 9)]);
+
+    // Persist to Supabase PostgreSQL database
+    savePositionToDB(newPosition);
+    saveTradeToDB(newTradeRecord);
+    saveBlockToDB(newBlock);
+    recordAuditLog(
+      order.broker,
+      'TRADE_CREATED',
+      `${newTradeRecord.id} (${newTradeRecord.asset})`,
+      txHash,
+      { qty: order.qty, price: order.price, side: order.side }
+    );
   };
 
   // Close position handler
   const handleClosePosition = (posId: string) => {
     const target = positions.find(p => p.id === posId);
     setPositions(prev => prev.filter(p => p.id !== posId));
+    deletePositionFromDB(posId);
     if (target) {
       alert(`Closed position ${target.id} (${target.asset}). Realized P&L: +₹${target.unrealizedPnl.toLocaleString('en-IN')}`);
     }
