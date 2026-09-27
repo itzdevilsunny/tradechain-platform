@@ -26,7 +26,7 @@ export const RiskManagementCenter: React.FC = () => {
   const handleSaveLimit = (e: React.FormEvent) => {
     e.preventDefault();
     if (editingRule) {
-      editingRule.limitValue = newLimitVal;
+      setRules(prev => prev.map(r => r.id === editingRule.id ? { ...r, limitValue: newLimitVal } : r));
       alert(`Updated risk limit for ${editingRule.name} to: ${newLimitVal}`);
       setEditingRule(null);
     }
