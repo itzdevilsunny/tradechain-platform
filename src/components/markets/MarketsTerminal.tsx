@@ -65,6 +65,37 @@ interface TimeAndSalesRow {
   hash: string;
 }
 
+// Helper to generate dynamic, realistic candles per asset (Company/Bank/Crypto)
+const generateAssetCandles = (symbol: string, currentPrice: number): CandlestickData[] => {
+  const base = currentPrice > 0 ? currentPrice : 24850;
+  const volFactor = symbol.includes('BTC') ? 0.015 : symbol.includes('NIFTY') ? 0.003 : 0.005;
+
+  const times = ['09:15', '09:30', '09:45', '10:00', '10:15', '10:30', '10:45', '11:00', '11:15', '11:30', '11:45', '12:00', '12:15', '12:30', '12:45', '13:00'];
+  
+  let price = base * (1 - volFactor * 2.2);
+  return times.map((t, idx) => {
+    const isBullish = Math.sin(idx * 0.75 + (symbol.length % 5)) >= -0.15;
+    const delta = (isBullish ? 1 : -1) * (base * volFactor * (0.35 + Math.random() * 0.85));
+    const open = Math.round(price * 100) / 100;
+    const close = Math.round((open + delta) * 100) / 100;
+    const high = Math.round((Math.max(open, close) + base * volFactor * 0.3) * 100) / 100;
+    const low = Math.round((Math.min(open, close) - base * volFactor * 0.3) * 100) / 100;
+    const vol = Math.floor(15000 + Math.random() * 40000);
+    price = close;
+
+    return {
+      time: t,
+      open,
+      high,
+      low,
+      close,
+      volume: vol,
+      ema20: Math.round((open + close) / 2 * 100) / 100,
+      ema50: Math.round((open * 0.994) * 100) / 100
+    };
+  });
+};
+
 export const MarketsTerminal: React.FC<MarketsTerminalProps> = ({
   candles,
   niftyPrice,
@@ -89,11 +120,22 @@ export const MarketsTerminal: React.FC<MarketsTerminalProps> = ({
   const [selectedTimeframe, setSelectedTimeframe] = useState<'1m' | '5m' | '15m' | '1h' | '1d'>('15m');
   const [chartType, setChartType] = useState<'candle' | 'area'>('candle');
 
+  // Dynamic Candle state per asset
+  const [assetCandles, setAssetCandles] = useState<CandlestickData[]>(() => {
+    const initialPrice = selectedPair === 'BANK NIFTY Futures' ? 53420.15 : selectedPair === 'RELIANCE IND' ? 3042.80 : selectedPair === 'TCS' ? 4290.50 : selectedPair === 'HDFC BANK' ? 1675.20 : selectedPair === 'BTC / INR' ? 5785400 : niftyPrice;
+    return generateAssetCandles(selectedPair, initialPrice);
+  });
+
+  // Regenerate asset candles on selectedPair change
+  useEffect(() => {
+    const item = watchlist.find(w => w.symbol === selectedPair) || watchlist[0];
+    setAssetCandles(generateAssetCandles(selectedPair, item.price));
+  }, [selectedPair]);
+
   // Order Ticket Form State
   const [orderSide, setOrderSide] = useState<'BUY' | 'SELL'>('BUY');
   const [orderType, setOrderType] = useState<'MARKET' | 'LIMIT' | 'SL-M'>('MARKET');
-  const [orderQty, setOrderQty] = useState(25); // 1 NIFTY lot default
-  const [orderLimitPrice, setOrderLimitPrice] = useState(niftyPrice);
+  const [orderQty, setOrderQty] = useState(25);
   const [selectedBroker, setSelectedBroker] = useState<'Upstox Pro' | 'Groww API' | 'Zerodha Kite'>('Upstox Pro');
   const [orderSuccessMsg, setOrderSuccessMsg] = useState<string | null>(null);
 
@@ -105,7 +147,7 @@ export const MarketsTerminal: React.FC<MarketsTerminalProps> = ({
     { time: '08:40:30', price: 24851.10, qty: 75, side: 'BUY', broker: 'Upstox', hash: '0x6b77...04df' }
   ]);
 
-  // Keep live tick updates synchronized
+  // Keep live tick updates synchronized for watchlist and active candles
   useEffect(() => {
     setWatchlist(prev => prev.map(item => {
       if (item.symbol === 'NIFTY 50 Futures') {
@@ -113,16 +155,27 @@ export const MarketsTerminal: React.FC<MarketsTerminalProps> = ({
       }
       return item;
     }));
-  }, [niftyPrice, niftyChange]);
+
+    setAssetCandles(prev => {
+      if (!prev || prev.length === 0) return prev;
+      const activeWatch = watchlist.find(w => w.symbol === selectedPair) || watchlist[0];
+      const last = { ...prev[prev.length - 1] };
+      last.close = activeWatch.price;
+      last.high = Math.max(last.high, activeWatch.price);
+      last.low = Math.min(last.low, activeWatch.price);
+      return [...prev.slice(0, prev.length - 1), last];
+    });
+  }, [niftyPrice, niftyChange, selectedPair]);
 
   // Add random live ticks to Time & Sales
   useEffect(() => {
     const interval = setInterval(() => {
+      const activeWatch = watchlist.find(w => w.symbol === selectedPair) || watchlist[0];
       const now = new Date();
       const timeStr = now.toLocaleTimeString('en-IN', { hour12: false });
       const side: 'BUY' | 'SELL' = Math.random() > 0.45 ? 'BUY' : 'SELL';
-      const delta = (Math.random() - 0.48) * 4;
-      const price = Math.round((niftyPrice + delta) * 100) / 100;
+      const delta = (Math.random() - 0.48) * (activeWatch.price * 0.0005);
+      const price = Math.round((activeWatch.price + delta) * 100) / 100;
       const qty = [25, 50, 75, 100, 150][Math.floor(Math.random() * 5)];
       const brokers = ['Upstox', 'Groww', 'Zerodha'];
       const broker = brokers[Math.floor(Math.random() * brokers.length)];
@@ -132,25 +185,26 @@ export const MarketsTerminal: React.FC<MarketsTerminalProps> = ({
     }, 4000);
 
     return () => clearInterval(interval);
-  }, [niftyPrice]);
+  }, [selectedPair, watchlist]);
 
   const activeWatchItem = watchlist.find(w => w.symbol === selectedPair) || watchlist[0];
 
   // Derived order book level 2 (5-level bid/ask depth)
+  const step = activeWatchItem.price * 0.0002;
   const bids: OrderBookRow[] = [
-    { price: activeWatchItem.price - 0.25, qty: 350, total: 350 },
-    { price: activeWatchItem.price - 0.75, qty: 820, total: 1170 },
-    { price: activeWatchItem.price - 1.25, qty: 1450, total: 2620 },
-    { price: activeWatchItem.price - 1.75, qty: 2100, total: 4720 },
-    { price: activeWatchItem.price - 2.50, qty: 3800, total: 8520 }
+    { price: activeWatchItem.price - step * 1, qty: 350, total: 350 },
+    { price: activeWatchItem.price - step * 3, qty: 820, total: 1170 },
+    { price: activeWatchItem.price - step * 5, qty: 1450, total: 2620 },
+    { price: activeWatchItem.price - step * 7, qty: 2100, total: 4720 },
+    { price: activeWatchItem.price - step * 10, qty: 3800, total: 8520 }
   ];
 
   const asks: OrderBookRow[] = [
-    { price: activeWatchItem.price + 0.25, qty: 420, total: 420 },
-    { price: activeWatchItem.price + 0.75, qty: 650, total: 1070 },
-    { price: activeWatchItem.price + 1.25, qty: 1200, total: 2270 },
-    { price: activeWatchItem.price + 1.75, qty: 1850, total: 4120 },
-    { price: activeWatchItem.price + 2.50, qty: 2900, total: 7020 }
+    { price: activeWatchItem.price + step * 1, qty: 420, total: 420 },
+    { price: activeWatchItem.price + step * 3, qty: 650, total: 1070 },
+    { price: activeWatchItem.price + step * 5, qty: 1200, total: 2270 },
+    { price: activeWatchItem.price + step * 7, qty: 1850, total: 4120 },
+    { price: activeWatchItem.price + step * 10, qty: 2900, total: 7020 }
   ];
 
   const filteredWatchlist = watchlist.filter(item => {
@@ -176,7 +230,6 @@ export const MarketsTerminal: React.FC<MarketsTerminalProps> = ({
       });
     }
 
-    // Append to live tape stream
     const now = new Date();
     const timeStr = now.toLocaleTimeString('en-IN', { hour12: false });
     setTapeStream(prev => [
@@ -188,8 +241,23 @@ export const MarketsTerminal: React.FC<MarketsTerminalProps> = ({
     setTimeout(() => setOrderSuccessMsg(null), 6000);
   };
 
+  // --- Dynamic Auto-Normalizing Y-Axis Candle Scaling Math ---
+  const candleLows = assetCandles.map(c => c.low);
+  const candleHighs = assetCandles.map(c => c.high);
+  const minCandlePrice = Math.min(...candleLows) * 0.998;
+  const maxCandlePrice = Math.max(...candleHighs) * 1.002;
+  const candlePriceRange = (maxCandlePrice - minCandlePrice) || 1;
+
+  // Converts any stock/bank/crypto price to SVG Y coordinate inside 250px box
+  const getSvgY = (p: number) => {
+    const topPadding = 20;
+    const availableH = 210;
+    const ratio = (p - minCandlePrice) / candlePriceRange;
+    return (230 - topPadding) - (ratio * availableH) + topPadding;
+  };
+
   return (
-    <div className="space-y-6 animate-in fade-in duration-200">
+    <div className="space-y-6 animate-in fade-in duration-200 overflow-x-hidden">
       
       {/* Top Banner & Market Status Ribbon */}
       <div className="flex flex-wrap items-center justify-between gap-4 bg-white dark:bg-[#0B0E14] p-5 rounded-xl border border-slate-200 dark:border-[#1E2633] shadow-xs">
@@ -230,7 +298,7 @@ export const MarketsTerminal: React.FC<MarketsTerminalProps> = ({
       </div>
 
       {/* Main Terminal 3-Column Workspace */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 min-w-0">
         
         {/* LEFT COLUMN: Watchlist & Search (3 cols) */}
         <div className="lg:col-span-3 bg-white dark:bg-[#0B0E14] border border-slate-200 dark:border-[#1E2633] rounded-xl p-4 flex flex-col h-[750px]">
@@ -315,7 +383,7 @@ export const MarketsTerminal: React.FC<MarketsTerminalProps> = ({
         </div>
 
         {/* CENTER COLUMN: Interactive Chart & Technical Telemetry (6 cols) */}
-        <div className="lg:col-span-6 space-y-5">
+        <div className="lg:col-span-6 space-y-5 min-w-0">
           
           {/* Chart Header Controls */}
           <div className="bg-white dark:bg-[#0B0E14] border border-slate-200 dark:border-[#1E2633] rounded-xl p-4">
@@ -387,19 +455,25 @@ export const MarketsTerminal: React.FC<MarketsTerminalProps> = ({
               </div>
             </div>
 
-            {/* SVG Visual Candlestick / Area Chart Simulation */}
+            {/* SVG Visual Candlestick / Area Chart with Auto-Normalizing Y-Axis */}
             <div className="h-[430px] bg-slate-900 dark:bg-[#080A0F] border border-slate-200 dark:border-[#1E2633] rounded-lg p-4 relative overflow-hidden flex flex-col justify-between">
               
               {/* Technical Indicator Badges */}
-              <div className="flex items-center gap-2 text-[10px] font-mono z-10">
-                <span className="px-2 py-0.5 bg-[#3B82F6]/20 text-[#3B82F6] border border-[#3B82F6]/30 rounded font-bold">EMA(20): ₹24,845</span>
-                <span className="px-2 py-0.5 bg-[#8B5CF6]/20 text-[#8B5CF6] border border-[#8B5CF6]/30 rounded font-bold">EMA(50): ₹24,790</span>
-                <span className="px-2 py-0.5 bg-[#10B981]/20 text-[#10B981] border border-[#10B981]/30 rounded font-bold">RSI(14): 58.4 (Bullish)</span>
+              <div className="flex flex-wrap items-center gap-2 text-[10px] font-mono z-10">
+                <span className="px-2 py-0.5 bg-[#3B82F6]/20 text-[#3B82F6] border border-[#3B82F6]/30 rounded font-bold">
+                  EMA(20): ₹{(activeWatchItem.price * 0.997).toLocaleString('en-IN', { maximumFractionDigits: 1 })}
+                </span>
+                <span className="px-2 py-0.5 bg-[#8B5CF6]/20 text-[#8B5CF6] border border-[#8B5CF6]/30 rounded font-bold">
+                  EMA(50): ₹{(activeWatchItem.price * 0.992).toLocaleString('en-IN', { maximumFractionDigits: 1 })}
+                </span>
+                <span className="px-2 py-0.5 bg-[#10B981]/20 text-[#10B981] border border-[#10B981]/30 rounded font-bold">
+                  RSI(14): 58.4 (Bullish)
+                </span>
               </div>
 
               {/* Chart SVG Drawing */}
-              <div className="absolute inset-x-0 top-12 bottom-6 px-4">
-                <svg className="w-full h-full" viewBox="0 0 600 300" preserveAspectRatio="none">
+              <div className="absolute inset-x-0 top-12 bottom-8 px-4">
+                <svg className="w-full h-full" viewBox="0 0 600 250" preserveAspectRatio="none">
                   <defs>
                     <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="0%" stopColor="#3B82F6" stopOpacity="0.4" />
@@ -407,57 +481,97 @@ export const MarketsTerminal: React.FC<MarketsTerminalProps> = ({
                     </linearGradient>
                   </defs>
 
-                  {/* Horizontal Grid lines */}
-                  <line x1="0" y1="60" x2="600" y2="60" stroke="#1E2633" strokeDasharray="4 4" />
-                  <line x1="0" y1="120" x2="600" y2="120" stroke="#1E2633" strokeDasharray="4 4" />
-                  <line x1="0" y1="180" x2="600" y2="180" stroke="#1E2633" strokeDasharray="4 4" />
-                  <line x1="0" y1="240" x2="600" y2="240" stroke="#1E2633" strokeDasharray="4 4" />
+                  {/* Dynamic Horizontal Grid lines with Asset Price Labels */}
+                  {[0.8, 0.55, 0.3, 0.1].map((ratio, idx) => {
+                    const priceVal = minCandlePrice + ratio * candlePriceRange;
+                    const yVal = getSvgY(priceVal);
+                    return (
+                      <g key={idx}>
+                        <line x1="0" y1={yVal} x2="600" y2={yVal} stroke="#1E2633" strokeDasharray="4 4" />
+                        <text x="595" y={yVal - 4} textAnchor="end" fill="#64748B" fontSize="9" fontFamily="JetBrains Mono">
+                          ₹{priceVal.toLocaleString('en-IN', { maximumFractionDigits: 1 })}
+                        </text>
+                      </g>
+                    );
+                  })}
 
                   {chartType === 'area' ? (
                     <>
+                      {/* Area Fill */}
                       <path
-                        d="M 0 240 Q 100 200, 200 180 T 400 110 T 600 60 L 600 300 L 0 300 Z"
+                        d={
+                          assetCandles.map((c, i) => {
+                            const x = 20 + i * (560 / (assetCandles.length - 1));
+                            const y = getSvgY(c.close);
+                            return `${i === 0 ? 'M' : 'L'} ${x} ${y}`;
+                          }).join(' ') + ` L 580 250 L 20 250 Z`
+                        }
                         fill="url(#chartGradient)"
                       />
+                      {/* Area Line */}
                       <path
-                        d="M 0 240 Q 100 200, 200 180 T 400 110 T 600 60"
+                        d={
+                          assetCandles.map((c, i) => {
+                            const x = 20 + i * (560 / (assetCandles.length - 1));
+                            const y = getSvgY(c.close);
+                            return `${i === 0 ? 'M' : 'L'} ${x} ${y}`;
+                          }).join(' ')
+                        }
                         fill="none"
                         stroke="#3B82F6"
-                        strokeWidth="3"
+                        strokeWidth="2.5"
                       />
                     </>
                   ) : (
-                    // Candlestick rendering
-                    candles.map((c, i) => {
-                      const x = 30 + i * 28;
+                    // Dynamic Asset Candlestick Rendering
+                    assetCandles.map((c, i) => {
+                      const x = 25 + i * (550 / (assetCandles.length - 1));
                       const isUp = c.close >= c.open;
-                      const yOpen = 240 - ((c.open - 24700) * 1.2);
-                      const yClose = 240 - ((c.close - 24700) * 1.2);
-                      const yHigh = 240 - ((c.high - 24700) * 1.2);
-                      const yLow = 240 - ((c.low - 24700) * 1.2);
+                      const yOpen = getSvgY(c.open);
+                      const yClose = getSvgY(c.close);
+                      const yHigh = getSvgY(c.high);
+                      const yLow = getSvgY(c.low);
                       const bodyTop = Math.min(yOpen, yClose);
                       const bodyHeight = Math.max(3, Math.abs(yOpen - yClose));
                       const color = isUp ? '#10B981' : '#EF4444';
 
                       return (
                         <g key={i}>
+                          {/* Upper & Lower Wick */}
                           <line x1={x} y1={yHigh} x2={x} y2={yLow} stroke={color} strokeWidth="1.5" />
+                          {/* Candle Body */}
                           <rect
-                            x={x - 6}
+                            x={x - 7}
                             y={bodyTop}
-                            width="12"
+                            width="14"
                             height={bodyHeight}
                             fill={color}
+                            stroke={color}
                             rx="1"
+                            className="transition-all duration-300"
                           />
                         </g>
                       );
                     })
                   )}
 
-                  {/* Pulsing price cursor line */}
-                  <line x1="0" y1="60" x2="600" y2="60" stroke="#10B981" strokeWidth="1.5" strokeDasharray="2 2" />
-                  <circle cx="600" cy="60" r="5" fill="#10B981" className="animate-ping" />
+                  {/* Pulsing Live Ticker Price Line */}
+                  <line 
+                    x1="0" 
+                    y1={getSvgY(activeWatchItem.price)} 
+                    x2="600" 
+                    y2={getSvgY(activeWatchItem.price)} 
+                    stroke="#10B981" 
+                    strokeWidth="1.5" 
+                    strokeDasharray="3 3" 
+                  />
+                  <circle 
+                    cx="595" 
+                    cy={getSvgY(activeWatchItem.price)} 
+                    r="4" 
+                    fill="#10B981" 
+                    className="animate-ping" 
+                  />
                 </svg>
               </div>
 
