@@ -160,7 +160,7 @@ export const BacktestWorkspace: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6 w-full max-w-full overflow-hidden">
+    <div className="space-y-6 w-full max-w-full">
       
       {/* Top Banner Header */}
       <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 bg-white dark:bg-[#11161D] p-5 rounded-xl border border-slate-200 dark:border-[#242B35] shadow-sm w-full overflow-hidden">

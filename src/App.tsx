@@ -385,38 +385,36 @@ export function App() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-100 dark:bg-[#080A0F] text-slate-900 dark:text-[#F1F5F9] flex flex-col font-sans transition-colors">
-      <div className="flex-1 flex overflow-hidden">
+    <div className="h-screen w-screen bg-slate-100 dark:bg-[#080A0F] text-slate-900 dark:text-[#F1F5F9] flex overflow-hidden font-sans transition-colors">
+      
+      {/* Persistent Left Sidebar */}
+      <Sidebar
+        activePage={activePage}
+        onSelectPage={(page) => setActivePage(page)}
+        isOpen={isMobileSidebarOpen}
+        onCloseMobile={() => setIsMobileSidebarOpen(false)}
+      />
+
+      {/* Main Content Workspace Area */}
+      <div className="flex-1 flex flex-col min-w-0 h-full overflow-y-auto bg-grid-pattern">
         
-        {/* Persistent Left Sidebar */}
-        <Sidebar
+        {/* Sticky Top Command Header */}
+        <TopHeader
           activePage={activePage}
-          onSelectPage={(page) => setActivePage(page)}
-          isOpen={isMobileSidebarOpen}
-          onCloseMobile={() => setIsMobileSidebarOpen(false)}
+          theme={theme}
+          onToggleTheme={handleToggleTheme}
+          onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
+          onToggleAIAssistant={() => setIsAIAssistantOpen(true)}
+          onToggleLoginModal={() => setIsLoginModalOpen(true)}
+          onToggleMobileSidebar={() => setIsMobileSidebarOpen(prev => !prev)}
+          btcPrice={niftyPrice}
+          btcChange={niftyChange}
         />
 
-        {/* Main Content Workspace Area */}
-        <div className="flex-1 flex flex-col min-w-0 h-screen overflow-y-auto bg-grid-pattern">
-          
-          {/* Sticky Top Command Header */}
-          <TopHeader
-            activePage={activePage}
-            theme={theme}
-            onToggleTheme={handleToggleTheme}
-            onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
-            onToggleAIAssistant={() => setIsAIAssistantOpen(true)}
-            onToggleLoginModal={() => setIsLoginModalOpen(true)}
-            onToggleMobileSidebar={() => setIsMobileSidebarOpen(prev => !prev)}
-            btcPrice={niftyPrice}
-            btcChange={niftyChange}
-          />
-
-          {/* Dynamic Page Workspace Body */}
-          <main className="flex-1 p-4 lg:p-6 max-w-7xl w-full mx-auto space-y-6">
-            {renderWorkspaceContent()}
-          </main>
-        </div>
+        {/* Dynamic Page Workspace Body */}
+        <main className="flex-1 p-4 lg:p-6 pb-28 lg:pb-36 max-w-7xl w-full mx-auto space-y-6">
+          {renderWorkspaceContent()}
+        </main>
       </div>
 
       {/* Floating Draggable Round AI Chatbot Action Button */}
