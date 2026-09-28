@@ -643,7 +643,7 @@ export const SettingsPage: React.FC = () => {
                 <div className="flex gap-2">
                   <input
                     type={showSecret['groq_settings'] ? 'text' : 'password'}
-                    value={localStorage.getItem('tradechain_groq_key') || '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'}
+                    value={localStorage.getItem('tradechain_groq_key') || (import.meta as any).env?.VITE_GROQ_API_KEY || ''}
                     onChange={(e) => {
                       localStorage.setItem('tradechain_groq_key', e.target.value);
                       handleSave();

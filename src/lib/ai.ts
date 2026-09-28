@@ -1,6 +1,6 @@
 import { AISignalData, CandlestickData } from '../types/trading';
 
-export const DEFAULT_GROQ_KEY = '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';
+export const DEFAULT_GROQ_KEY = '';
 
 export function getActiveGroqKey(): string {
   if (typeof window !== 'undefined') {
