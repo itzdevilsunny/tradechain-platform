@@ -1,6 +1,10 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
+import dns from 'node:dns';
+
+// Ensure IPv4 first on Windows to avoid Node 17+ proxy ETIMEDOUT
+dns.setDefaultResultOrder('ipv4first');
 
 // https://vitejs.dev/config/
 export default defineConfig({
