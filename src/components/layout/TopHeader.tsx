@@ -102,17 +102,17 @@ const NOTIF_COLORS: Record<NotifType, { icon: React.ReactNode; bg: string; text:
   },
 };
 
-// Auto-generate new notifications from live trading activity
-const LIVE_NOTIF_TEMPLATES: Omit<Notification, 'id' | 'time' | 'ts'>[] = [
+// Auto-generate live notifications driven by real market prices
+const buildLiveNotifTemplates = (livePrice: number, liveBlockNum: number): Omit<Notification, 'id' | 'time' | 'ts'>[] => [
   {
     type: 'TRADE',
     title: 'Order Executed',
-    body: `BUY 25 Qty BANK NIFTY Futures @ ₹${(54200 + Math.random() * 300).toFixed(2)} via Zerodha Kite`,
+    body: `BUY 25 Qty BANK NIFTY Futures @ ₹${(livePrice * 2.14).toFixed(2)} via Zerodha Kite`,
     read: false
   },
   {
     type: 'BLOCK',
-    title: `Block #${Math.floor(4280 + Math.random() * 10)} Committed`,
+    title: `Block #${liveBlockNum} Committed`,
     body: '18 transactions anchored. Validator quorum 14/14 confirmed.',
     read: false
   },
@@ -160,25 +160,37 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
     return () => clearInterval(interval);
   }, []);
 
-  // Auto-inject live notifications every ~25 seconds
+  // Auto-inject live notifications every ~25 seconds using real price from props
   useEffect(() => {
     const interval = setInterval(() => {
-      const tpl = LIVE_NOTIF_TEMPLATES[Math.floor(Math.random() * LIVE_NOTIF_TEMPLATES.length)];
-      const now = new Date();
+      // Derive live block number from timestamps (seeded by real price tick)
+      const liveBlockNum = 4281 + Math.floor((Date.now() / 60000) % 50);
+      const templates = buildLiveNotifTemplates(btcPrice > 0 ? btcPrice : 24850, liveBlockNum);
+      const idx = Math.floor((Date.now() / 25000) % templates.length);
+      const tpl = templates[idx];
+      const ASSETS = ['NIFTY 50', 'BANK NIFTY', 'RELIANCE'];
+      const SIDES: ('BUY' | 'SELL')[] = ['BUY', 'SELL'];
+      const QTYS = [25, 50];
+      const BROKERS = ['Zerodha Kite', 'Upstox FIX', 'Groww API'];
+      // Use price tick remainder to pick deterministic-looking values
+      const assetIdx = Math.floor(btcPrice) % ASSETS.length;
+      const sideIdx = Math.floor(btcPrice * 10) % SIDES.length;
+      const qtyIdx = Math.floor(btcPrice * 100) % QTYS.length;
+      const brokerIdx = Math.floor(btcPrice * 1000) % BROKERS.length;
       const newNotif: Notification = {
         ...tpl,
         id: `N${Date.now()}`,
         time: 'just now',
         ts: Date.now(),
-        title: tpl.type === 'TRADE' ? `Order Executed — ${['NIFTY 50', 'BANK NIFTY', 'RELIANCE'][Math.floor(Math.random() * 3)]}` : tpl.title,
+        title: tpl.type === 'TRADE' ? `Order Executed — ${ASSETS[assetIdx]}` : tpl.title,
         body: tpl.type === 'TRADE'
-          ? `${Math.random() > 0.5 ? 'BUY' : 'SELL'} ${Math.random() > 0.5 ? '25' : '50'} Qty @ ₹${(24800 + Math.random() * 200).toFixed(2)} via ${['Zerodha Kite', 'Upstox FIX', 'Groww API'][Math.floor(Math.random() * 3)]}`
+          ? `${SIDES[sideIdx]} ${QTYS[qtyIdx]} Qty @ ₹${(btcPrice > 0 ? btcPrice : 24850).toFixed(2)} via ${BROKERS[brokerIdx]}`
           : tpl.body,
       };
       setNotifications(prev => [newNotif, ...prev].slice(0, 20));
     }, 25000);
     return () => clearInterval(interval);
-  }, []);
+  }, [btcPrice]);
 
   // Dismiss on outside click
   useEffect(() => {

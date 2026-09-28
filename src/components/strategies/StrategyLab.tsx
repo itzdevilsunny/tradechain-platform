@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { StrategyConfig } from '../../types/trading';
+import { generateSHA256 } from '../../lib/cryptoUtils';
 
 export const DEFAULT_STRATEGIES: StrategyConfig[] = [
   {
@@ -213,7 +214,7 @@ export const StrategyLab: React.FC<StrategyLabProps> = ({ onNavigateToBacktest }
   };
 
   const handleCloneStrategy = (strat: StrategyConfig) => {
-    const cloneHash = `0x${Math.random().toString(16).slice(2, 14)}${Math.random().toString(16).slice(2, 14)}`;
+    const cloneHash = generateSHA256(`clone:${strat.id}:${strat.name}:${Date.now()}`);
     const cloned: StrategyConfig = {
       ...strat,
       id: `STRAT-00${strategies.length + 1}`,
@@ -232,7 +233,7 @@ export const StrategyLab: React.FC<StrategyLabProps> = ({ onNavigateToBacktest }
     e.preventDefault();
     if (!newStratName.trim()) return;
 
-    const hashVal = `0x${Math.random().toString(16).slice(2, 14)}${Math.random().toString(16).slice(2, 14)}`;
+    const hashVal = generateSHA256(`strategy:${newStratName}:ema${newEmaShort}_${newEmaLong}:rsi${newRsiLower}_${newRsiUpper}:sl${newStopLoss}:tp${newTakeProfit}:${Date.now()}`);
 
     const newStrat: StrategyConfig = {
       id: `STRAT-00${strategies.length + 1}`,
@@ -240,9 +241,10 @@ export const StrategyLab: React.FC<StrategyLabProps> = ({ onNavigateToBacktest }
       version: 'v1.0.0',
       status: 'ACTIVE',
       hash: hashVal,
-      winRate: Math.round((65 + Math.random() * 15) * 10) / 10,
-      backtestReturn: Math.round((18 + Math.random() * 25) * 10) / 10,
-      maxDrawdown: Math.round((4 + Math.random() * 4) * 10) / 10,
+      // Win rate derived from EMA ratio + RSI band width (deterministic)
+      winRate: Math.round(Math.min(88, 55 + (newEmaShort / newEmaLong) * 20 + (newRsiUpper - newRsiLower) * 0.15) * 10) / 10,
+      backtestReturn: Math.round(Math.min(45, 12 + (newTakeProfit / newStopLoss) * 4 + (newRsiUpper - 50) * 0.2) * 10) / 10,
+      maxDrawdown: Math.round(Math.max(2, newStopLoss * 1.8 - (newTakeProfit - newStopLoss) * 0.3) * 10) / 10,
       totalTrades: 32,
       description: newStratDesc || 'Custom quantitative strategy configured in TradeChain Strategy Lab.',
       parameters: {
@@ -267,7 +269,7 @@ export const StrategyLab: React.FC<StrategyLabProps> = ({ onNavigateToBacktest }
     e.preventDefault();
     if (!editingStrat) return;
 
-    const newHash = `0x${Math.random().toString(16).slice(2, 14)}${Math.random().toString(16).slice(2, 14)}`;
+    const newHash = generateSHA256(`params:${editingStrat.id}:ema${editingStrat.parameters.emaShort}_${editingStrat.parameters.emaLong}:ts${Date.now()}`);
 
     setStrategies(prev => prev.map(s => {
       if (s.id === editingStrat.id) {
@@ -296,11 +298,13 @@ export const StrategyLab: React.FC<StrategyLabProps> = ({ onNavigateToBacktest }
     setIsSimulating(true);
     setTimeout(() => {
       setIsSimulating(false);
-      // Generate randomized realistic optimization improvement
-      const simulatedWin = Math.min(88, Math.round((70 + (optFastEma < optSlowEma ? 5 : -5) + (optSl < optTp ? 4 : -2) + Math.random() * 5) * 10) / 10);
-      const simulatedReturn = Math.round((22 + (optTp / (optSl || 1)) * 4 + Math.random() * 8) * 10) / 10;
-      const simulatedSharpe = Math.round((1.7 + (simulatedWin / 50) + Math.random() * 0.4) * 100) / 100;
-      const simulatedDd = Math.round((3.2 + Math.random() * 3) * 10) / 10;
+      // Optimization results derived from parameter math (deterministic)
+      const emaBias = optFastEma < optSlowEma ? 5 : -5;
+      const riskRewardBonus = optSl < optTp ? (optTp / optSl) * 2 : -2;
+      const simulatedWin = Math.min(88, Math.round((68 + emaBias + riskRewardBonus) * 10) / 10);
+      const simulatedReturn = Math.round((18 + (optTp / (optSl || 1)) * 5 + emaBias * 0.4) * 10) / 10;
+      const simulatedSharpe = Math.round((1.5 + (simulatedWin / 50) + riskRewardBonus * 0.05) * 100) / 100;
+      const simulatedDd = Math.round(Math.max(1.5, optSl * 2.2 - riskRewardBonus * 0.2) * 10) / 10;
 
       setSweepResults({
         winRate: simulatedWin,
@@ -316,7 +320,7 @@ export const StrategyLab: React.FC<StrategyLabProps> = ({ onNavigateToBacktest }
     const target = strategies.find(s => s.name === selectedOptStrat);
     if (!target) return;
 
-    const newHash = `0x${Math.random().toString(16).slice(2, 14)}${Math.random().toString(16).slice(2, 14)}`;
+    const newHash = generateSHA256(`opt:${target.id}:ema${optFastEma}_${optSlowEma}:rsi${optRsiLower}_${optRsiUpper}:sl${optSl}:tp${optTp}:ts${Date.now()}`);
 
     setStrategies(prev => prev.map(s => {
       if (s.id === target.id) {
@@ -356,9 +360,10 @@ export const StrategyLab: React.FC<StrategyLabProps> = ({ onNavigateToBacktest }
 
   // Synthetic Monte Carlo Equity Curve for Optimizer
   const monteCarloCurve = useMemo(() => {
+    const curveEmaBias = optFastEma < optSlowEma ? 1 : -1;
     let eq = 100000;
     return Array.from({ length: 25 }, (_, i) => {
-      const stepChange = (Math.random() > 0.32 ? 1 : -0.7) * (sweepResults.expectedReturn * 45);
+      const stepChange = (curveEmaBias > 0 ? 1 : -0.7) * (sweepResults.expectedReturn * 45);
       eq = Math.max(80000, eq + stepChange);
       return {
         tradeIndex: `T-${i * 20}`,

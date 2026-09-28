@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { marketDataEngine } from '../../lib/marketData';
 import { upstoxService } from '../../lib/upstoxService';
+import { generateSHA256 } from '../../lib/cryptoUtils';
 
 interface MarketsTerminalProps {
   candles: CandlestickData[];
@@ -249,8 +250,8 @@ export const MarketsTerminal: React.FC<MarketsTerminalProps> = ({
 
   const handlePlaceOrder = (e: React.FormEvent) => {
     e.preventDefault();
-    const hash = `0x${Math.random().toString(16).substring(2, 10)}${Math.random().toString(16).substring(2, 10)}`;
     const price = activeWatchItem.price;
+    const hash = generateSHA256(`order:${selectedPair}:${orderSide}:${price}:${orderQty}:${Date.now()}`);
 
     if (onExecuteOrder) {
       onExecuteOrder({

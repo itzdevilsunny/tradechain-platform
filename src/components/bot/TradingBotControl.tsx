@@ -52,12 +52,31 @@ interface ConsoleLogMessage {
   hash?: string;
 }
 
-const generatePnlHistory = () =>
-  Array.from({ length: 20 }, (_, i) => ({
-    t: i,
-    pnl: Math.round(28000 + i * 600 + (Math.random() - 0.3) * 3000),
-    drawdown: Math.round(-(Math.random() * 5000)),
-  }));
+// Build cumulative P&L history chart from real trade records
+const buildPnlHistory = (trades: import('../../types/trading').TradeRecord[]) => {
+  if (!trades || trades.length === 0) {
+    // Fallback: flat baseline (no random) when no trades exist yet
+    return Array.from({ length: 20 }, (_, i) => ({ t: i, pnl: 0, drawdown: 0 }));
+  }
+  // Sort oldest first, accumulate realized P&L
+  const sorted = [...trades].sort((a, b) => {
+    const ta = new Date(a.timestamp.replace(' IST', '')).getTime();
+    const tb = new Date(b.timestamp.replace(' IST', '')).getTime();
+    return ta - tb;
+  });
+  let cumulative = 0;
+  let peak = 0;
+  const result = sorted.map((trade, i) => {
+    cumulative = Math.round((cumulative + (trade.pnl || 0)) * 100) / 100;
+    peak = Math.max(peak, cumulative);
+    return { t: i, pnl: cumulative, drawdown: Math.round((cumulative - peak) * 100) / 100 };
+  });
+  // Pad to 20 points
+  while (result.length < 20) {
+    result.unshift({ t: result.length - 20, pnl: 0, drawdown: 0 });
+  }
+  return result.slice(-20).map((r, i) => ({ ...r, t: i }));
+};
 
 const generateOrderBook = (price: number) => ({
   bids: Array.from({ length: 5 }, (_, i) => ({
@@ -84,13 +103,14 @@ export const TradingBotControl: React.FC<TradingBotControlProps> = ({
   const totalRealizedFromTrades = trades.reduce((acc, t) => acc + (t.pnl || 0), 0);
   const [liveRealized, setLiveRealized] = useState(totalRealizedFromTrades);
   const [liveLatency, setLiveLatency] = useState(14.2);
-  const [pnlHistory, setPnlHistory] = useState(generatePnlHistory());
+  const [pnlHistory, setPnlHistory] = useState(() => buildPnlHistory(trades));
   const [orderBook, setOrderBook] = useState(generateOrderBook(niftyPrice));
   const consoleRef = useRef<HTMLDivElement>(null);
 
-  // Sync realized P&L when actual trades update
+  // Sync realized P&L and rebuild chart when actual trades update
   useEffect(() => {
     setLiveRealized(trades.reduce((acc, t) => acc + (t.pnl || 0), 0));
+    setPnlHistory(buildPnlHistory(trades));
   }, [trades]);
 
   const [strategies, setStrategies] = useState<BotStrategyItem[]>([
