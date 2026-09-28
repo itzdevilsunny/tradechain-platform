@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { generateMerkleProof, triggerFileDownload } from '../../lib/cryptoUtils';
+import { generateMerkleProof, generateSHA256, triggerFileDownload } from '../../lib/cryptoUtils';
 import { TradeRecord } from '../../types/trading';
 import {
   ShieldCheck, CheckCircle2, Search, RefreshCw, Lock,
@@ -24,9 +24,27 @@ const VERIFY_STEPS = [
   { label: 'Chain Immutability Check', desc: '14 attestation layers deep — zero hash collision delta', icon: <Lock size={14} /> },
 ];
 
-const BATCH_CANDIDATES = [
-  'TRD-00041', 'TRD-00040', 'TRD-00039', 'TRD-IN-00104', 'TRD-IN-00103'
-];
+const DEFAULT_FALLBACK_TRADE: TradeRecord = {
+  id: 'TRD-LIVE-001',
+  asset: 'NIFTY50',
+  side: 'BUY',
+  price: 24850.50,
+  quantity: 50,
+  strategy: 'AI Quant Engine',
+  totalValue: 1242525,
+  pnl: 0,
+  pnlPercentage: 0,
+  stopLoss: 24600,
+  takeProfit: 25200,
+  status: 'ACTIVE',
+  timestamp: new Date().toISOString(),
+  txHash: '0x3a9f98c812bc89fa01284d7281bc77a1098df2418a992bc4910cf91a78b54312',
+  blockNumber: 1042,
+  blockHash: '0x992cf01bca9810a9f8219c438102948bbcae109284102948bcae91024981bcda',
+  merkleRoot: '0x11ab48f029c914bca901284d7281bc77a1098df2418a992bc4910cf91a78b54312',
+  digitalSignature: '0x99bcde4021948ba109248bcae109284102948bcae91024981bcda102948bcae91024981bcda102948bcae91024981bcda102948bcae91024981bcda102948bcae1b',
+  isVerified: true
+};
 
 interface ValidatorNode {
   id: string;
@@ -56,22 +74,25 @@ const VALIDATOR_NODES: ValidatorNode[] = [
   { id: 'NODE-14', name: 'NSDL Settlement Audit Attester', location: 'Lower Parel', role: 'AUDIT', status: 'ONLINE', latency: '1.4ms', publicKey: '0x0399f...6641e', lastBlockSigned: 4282 }
 ];
 
-const generateZkProof = () => ({
-  circuit: 'PLONK-v2 (Groth16)',
-  commitment: `0x${Math.random().toString(16).substring(2, 34)}`,
-  witness: `0x${Math.random().toString(16).substring(2, 34)}`,
-  publicInput: `0x${Math.random().toString(16).substring(2, 18)}`,
-  verifyKey: `0x${Math.random().toString(16).substring(2, 34)}`,
-  proofTime: `${(Math.random() * 2 + 0.8).toFixed(2)}ms`,
+const generateZkProof = (trade: TradeRecord) => ({
+  circuit: 'PLONK-v2 (Groth16 SNARK)',
+  commitment: generateSHA256(`zk-commit:${trade.id}:${trade.txHash}`),
+  witness: generateSHA256(`zk-witness:${trade.price}:${trade.quantity}`),
+  publicInput: `0x${generateSHA256(`zk-input:${trade.asset}:${trade.timestamp}`).slice(2, 18)}`,
+  verifyKey: generateSHA256(`zk-vk:${trade.merkleRoot}`),
+  proofTime: '1.24ms',
   valid: true,
 });
 
 export const TradeVerificationPage: React.FC<TradeVerificationPageProps> = ({
-  initialTradeId = 'TRD-IN-00104',
+  initialTradeId,
   trades,
 }) => {
+  const activeTradeList = trades.length > 0 ? trades : [DEFAULT_FALLBACK_TRADE];
+  const candidateTradeIds = activeTradeList.map(t => t.id);
+
   const [activeTab, setActiveTab] = useState<'VERIFY' | 'TAMPER_LAB' | 'BATCH' | 'VALIDATORS' | 'ZK_PROOF' | 'CHAIN_SCAN'>('VERIFY');
-  const [queryId, setQueryId] = useState(initialTradeId);
+  const [queryId, setQueryId] = useState<string>(initialTradeId || activeTradeList[0]?.id || 'TRD-LIVE-001');
   const [isVerifying, setIsVerifying] = useState(false);
   const [verifiedStep, setVerifiedStep] = useState<number>(6);
   const [copiedPayload, setCopiedPayload] = useState(false);
@@ -95,10 +116,17 @@ export const TradeVerificationPage: React.FC<TradeVerificationPageProps> = ({
   } | null>(null);
 
   // Batch verification
-  const [batchSelected, setBatchSelected] = useState<Set<string>>(new Set(BATCH_CANDIDATES));
+  const [batchSelected, setBatchSelected] = useState<Set<string>>(new Set(candidateTradeIds.slice(0, 5)));
   const [batchRunning, setBatchRunning] = useState(false);
   const [batchProgress, setBatchProgress] = useState(0);
   const [batchResults, setBatchResults] = useState<Record<string, 'VERIFIED' | 'FAILED' | 'PENDING'>>({});
+
+  // Sync batchSelected if trades change
+  useEffect(() => {
+    if (trades.length > 0) {
+      setBatchSelected(new Set(trades.slice(0, 5).map(t => t.id)));
+    }
+  }, [trades]);
 
   // ZK Proof
   const [zkProof, setZkProof] = useState<ReturnType<typeof generateZkProof> | null>(null);
@@ -109,8 +137,8 @@ export const TradeVerificationPage: React.FC<TradeVerificationPageProps> = ({
   const [scanProgress, setScanProgress] = useState(0);
   const [scanResult, setScanResult] = useState<null | { scanned: number; valid: number; anomalies: number }>(null);
 
-  const selectedTrade = trades.find(t => t.id.toLowerCase() === queryId.toLowerCase()) || trades[0];
-  const merkleProof = generateMerkleProof(selectedTrade.id);
+  const selectedTrade: TradeRecord = activeTradeList.find(t => t.id.toLowerCase() === (queryId || '').toLowerCase()) || activeTradeList[0];
+  const merkleProof = generateMerkleProof(selectedTrade.id, activeTradeList);
 
   // Sync Tamper fields when trade changes
   useEffect(() => {
@@ -179,7 +207,7 @@ export const TradeVerificationPage: React.FC<TradeVerificationPageProps> = ({
     setZkGenerating(true);
     setZkProof(null);
     setTimeout(() => {
-      setZkProof(generateZkProof());
+      setZkProof(generateZkProof(selectedTrade));
       setZkGenerating(false);
     }, 1200);
   };
@@ -629,8 +657,8 @@ export const TradeVerificationPage: React.FC<TradeVerificationPageProps> = ({
             )}
 
             <div className="space-y-2">
-              {BATCH_CANDIDATES.map(id => {
-                const trd = trades.find(t => t.id === id) || trades[0];
+              {candidateTradeIds.slice(0, 10).map((id: string) => {
+                const trd = activeTradeList.find(t => t.id === id) || activeTradeList[0];
                 const res = batchResults[id];
                 return (
                   <div

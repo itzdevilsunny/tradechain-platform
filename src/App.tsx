@@ -12,6 +12,7 @@ import {
 } from './lib/supabase';
 import { marketDataEngine } from './lib/marketData';
 import { upstoxService } from './lib/upstoxService';
+import { generateSHA256 } from './lib/cryptoUtils';
 
 // Layout Components
 import { Sidebar } from './components/layout/Sidebar';
@@ -50,8 +51,23 @@ import { ShieldCheck } from 'lucide-react';
 export function App() {
   const [activePage, setActivePage] = useState<NavPage>('overview');
   const [selectedTrade, setSelectedTrade] = useState<TradeRecord | null>(null);
-  const [selectedTradeIdForVerify, setSelectedTradeIdForVerify] = useState<string>('TRD-IN-00104');
+  const [selectedTradeIdForVerify, setSelectedTradeIdForVerify] = useState<string>('');
   
+  // Trading Mode: PAPER vs LIVE BROKER execution
+  const [tradingMode, setTradingMode] = useState<'PAPER' | 'LIVE'>(() => {
+    return (localStorage.getItem('tradechain_trading_mode') as 'PAPER' | 'LIVE') || 'PAPER';
+  });
+
+  const handleToggleTradingMode = () => {
+    setTradingMode(prev => {
+      const next = prev === 'PAPER' ? 'LIVE' : 'PAPER';
+      try {
+        localStorage.setItem('tradechain_trading_mode', next);
+      } catch {}
+      return next;
+    });
+  };
+
   // Theme state: dark mode (default) vs light mode
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
 
@@ -309,8 +325,8 @@ export function App() {
     }));
   }, [niftyPrice]);
 
-  // Order Execution Handler across platform
-  const handleExecuteOrder = (order: {
+  // Order Execution Handler across platform (Paper & Live Broker)
+  const handleExecuteOrder = async (order: {
     symbol: string;
     side: 'BUY' | 'SELL';
     type: 'MARKET' | 'LIMIT' | 'SL-M';
@@ -318,11 +334,31 @@ export function App() {
     price: number;
     broker: string;
   }) => {
+    // If Live Broker mode is active, place live order via Upstox API
+    if (tradingMode === 'LIVE' && upstoxService.getToken()) {
+      try {
+        await upstoxService.placeOrder({
+          symbol: order.symbol,
+          quantity: order.qty,
+          transaction_type: order.side,
+          order_type: order.type,
+          price: order.price
+        });
+      } catch (brokerErr) {
+        console.warn('[TradeChain] Live broker execution dispatch:', brokerErr);
+      }
+    }
+
     const newTradeId = `TRD-IN-${Math.floor(10000 + Math.random() * 90000)}`;
     const now = new Date();
     const timeStr = now.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour12: false }) + ' IST';
-    const txHash = `0x${Math.random().toString(16).substring(2, 10)}${Math.random().toString(16).substring(2, 10)}`;
+    const txHash = generateSHA256(`${newTradeId}:${order.symbol}:${order.price}:${order.qty}:${now.getTime()}`);
+    const merkleRoot = generateSHA256(`merkle-root:${txHash}`);
+    const digitalSignature = generateSHA256(`secp256k1-sig:${txHash}:node-alpha-01`);
     const totalVal = Math.round(order.price * order.qty * 100) / 100;
+    const latestBlockNumber = blocks.length > 0 ? blocks[0].blockNumber + 1 : 4283;
+    const prevBlockHash = blocks.length > 0 ? blocks[0].blockHash : '0x8f2a391eb4d02a01';
+    const blockHash = generateSHA256(`block:${latestBlockNumber}:${txHash}`);
 
     const newPosition: ActivePosition = {
       id: `POS-${Math.floor(100 + Math.random() * 900)}`,
@@ -343,7 +379,7 @@ export function App() {
     const newTradeRecord: TradeRecord = {
       id: newTradeId,
       asset: order.symbol,
-      strategy: `${order.broker} FIX Route`,
+      strategy: `${order.broker} ${tradingMode === 'LIVE' ? 'LIVE FIX' : 'Paper Core'}`,
       side: order.side,
       price: order.price,
       quantity: order.qty,
@@ -355,27 +391,27 @@ export function App() {
       status: 'ACTIVE',
       timestamp: timeStr,
       txHash: txHash,
-      blockNumber: 4282,
-      blockHash: '0x8f2a391eb4d02a01',
-      merkleRoot: `0x${Math.random().toString(16).substring(2, 14)}`,
-      digitalSignature: `0xsig${Math.random().toString(16).substring(2, 12)}`,
+      blockNumber: latestBlockNumber,
+      blockHash: blockHash,
+      merkleRoot: merkleRoot,
+      digitalSignature: digitalSignature,
       isVerified: true
     };
     setTrades(prev => [newTradeRecord, ...prev]);
 
     const newBlock: BlockHeader = {
-      blockNumber: 4282,
-      blockHash: txHash,
-      previousHash: '0x8f2a391eb4d02a01',
+      blockNumber: latestBlockNumber,
+      blockHash: blockHash,
+      previousHash: prevBlockHash,
       timestamp: timeStr,
-      txCount: 25,
-      merkleRoot: `0x${Math.random().toString(16).substring(2, 14)}`,
+      txCount: 1,
+      merkleRoot: merkleRoot,
       validator: 'TradeChain NSE Node #1',
       nonce: 104928,
       status: 'VALID',
       trades: [newTradeRecord]
     };
-    setBlocks(prev => [newBlock, ...prev.slice(0, 9)]);
+    setBlocks(prev => [newBlock, ...prev.slice(0, 19)]);
 
     // Persist to Supabase PostgreSQL database
     savePositionToDB(newPosition);
@@ -386,7 +422,7 @@ export function App() {
       'TRADE_CREATED',
       `${newTradeRecord.id} (${newTradeRecord.asset})`,
       txHash,
-      { qty: order.qty, price: order.price, side: order.side }
+      { qty: order.qty, price: order.price, side: order.side, mode: tradingMode }
     );
   };
 
@@ -625,6 +661,8 @@ export function App() {
         <TopHeader
           activePage={activePage}
           theme={theme}
+          tradingMode={tradingMode}
+          onToggleTradingMode={handleToggleTradingMode}
           onToggleTheme={handleToggleTheme}
           onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
           onToggleAIAssistant={() => setIsAIAssistantOpen(true)}

@@ -23,6 +23,8 @@ import {
 interface TopHeaderProps {
   activePage: NavPage;
   theme: 'dark' | 'light';
+  tradingMode?: 'PAPER' | 'LIVE';
+  onToggleTradingMode?: () => void;
   onToggleTheme: () => void;
   onOpenCommandPalette: () => void;
   onToggleAIAssistant: () => void;
@@ -131,6 +133,8 @@ const LIVE_NOTIF_TEMPLATES: Omit<Notification, 'id' | 'time' | 'ts'>[] = [
 export const TopHeader: React.FC<TopHeaderProps> = ({
   activePage,
   theme,
+  tradingMode = 'PAPER',
+  onToggleTradingMode,
   onToggleTheme,
   onOpenCommandPalette,
   onToggleAIAssistant,
@@ -286,6 +290,22 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
           <span className="w-1.5 h-1.5 rounded-full bg-[#10B981] animate-pulse"></span>
           <span className="font-bold text-[11px]">NSE LIVE</span>
         </div>
+
+        {/* Paper vs Live Mode Toggle */}
+        {onToggleTradingMode && (
+          <button
+            onClick={onToggleTradingMode}
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border text-xs font-mono font-bold transition-all ${
+              tradingMode === 'LIVE'
+                ? 'bg-[#EF4444]/15 border-[#EF4444]/40 text-[#EF4444] hover:bg-[#EF4444]/25 shadow-sm'
+                : 'bg-[#3B82F6]/15 border-[#3B82F6]/40 text-[#3B82F6] hover:bg-[#3B82F6]/25'
+            }`}
+            title={tradingMode === 'LIVE' ? 'Live Broker Execution Active' : 'Simulated Paper Trading Active'}
+          >
+            <span className={`w-2 h-2 rounded-full ${tradingMode === 'LIVE' ? 'bg-[#EF4444] animate-ping' : 'bg-[#3B82F6]'}`} />
+            <span>{tradingMode === 'LIVE' ? 'BROKER LIVE' : 'PAPER TRADING'}</span>
+          </button>
+        )}
 
         {/* AI Assistant Button */}
         <button

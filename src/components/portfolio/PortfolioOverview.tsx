@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ActivePosition, TradeRecord } from '../../types/trading';
 import { 
   PieChart as RechartsPieChart, 
@@ -34,6 +34,8 @@ import {
   AlertTriangle
 } from 'lucide-react';
 
+import { upstoxService } from '../../lib/upstoxService';
+
 interface PortfolioOverviewProps {
   positions: ActivePosition[];
   trades: TradeRecord[];
@@ -51,8 +53,41 @@ export const PortfolioOverview: React.FC<PortfolioOverviewProps> = ({
   onExecuteOrder,
   onNavigateToMarkets
 }) => {
-  // Cash balance state (customizable via Deposit/Withdraw modal)
-  const [cashBalance, setCashBalance] = useState<number>(78500.00);
+  // Cash balance state (synced with Upstox broker funds or custom deposit/withdraw)
+  const [cashBalance, setCashBalance] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem('tradechain_cash_balance');
+      if (saved) return Number(saved);
+    } catch {}
+    return 100000.00;
+  });
+
+  // Sync real Upstox available funds when broker token is connected
+  useEffect(() => {
+    async function syncFunds() {
+      const token = upstoxService.getToken();
+      if (!token) return;
+      try {
+        const funds = await upstoxService.getFundsAndMargin();
+        const available = funds?.data?.equity?.available_margin;
+        if (typeof available === 'number' && available > 0) {
+          setCashBalance(available);
+          localStorage.setItem('tradechain_cash_balance', available.toString());
+        }
+      } catch (e) {
+        console.warn('Upstox funds sync info:', e);
+      }
+    }
+    syncFunds();
+  }, []);
+
+  // Save cash balance changes
+  useEffect(() => {
+    try {
+      localStorage.setItem('tradechain_cash_balance', cashBalance.toString());
+    } catch {}
+  }, [cashBalance]);
+
   const [activeTab, setActiveTab] = useState<'ALLOCATION' | 'PERFORMANCE' | 'SECTORS'>('ALLOCATION');
   const [assetFilter, setAssetFilter] = useState<'ALL' | 'NSE_EQUITY' | 'DERIVATIVES' | 'CRYPTO'>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
@@ -63,13 +98,13 @@ export const PortfolioOverview: React.FC<PortfolioOverviewProps> = ({
   const [marginAction, setMarginAction] = useState<'DEPOSIT' | 'WITHDRAW'>('DEPOSIT');
 
   // Compute live portfolio metrics from positions
-  const investedCapital = positions.reduce((sum, p) => sum + (p.entryPrice * p.quantity), 0);
-  const unrealizedPnl = positions.reduce((sum, p) => sum + p.unrealizedPnl, 0);
-  const currentPositionsMarketValue = positions.reduce((sum, p) => sum + (p.currentPrice * p.quantity), 0);
+  const investedCapital = positions.reduce((sum, p) => sum + (p.entryPrice * (p.quantity || 1)), 0);
+  const unrealizedPnl = positions.reduce((sum, p) => sum + (p.unrealizedPnl || 0), 0);
+  const currentPositionsMarketValue = positions.reduce((sum, p) => sum + (p.currentPrice * (p.quantity || 1)), 0);
   const totalPortfolioValue = Math.round((cashBalance + currentPositionsMarketValue) * 100) / 100;
   
-  // Cumulative realized P&L from trades
-  const realizedPnl = Math.round(trades.reduce((sum, t) => sum + (t.pnl || 0), 0) * 100) / 100 + 16807.92;
+  // Cumulative realized P&L directly from actual trades
+  const realizedPnl = Math.round(trades.reduce((sum, t) => sum + (t.pnl || 0), 0) * 100) / 100;
 
   // Margin Exposure Ratio
   const marginExposurePct = Math.min(100, Math.round((investedCapital / Math.max(1, totalPortfolioValue)) * 1000) / 10);
