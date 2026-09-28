@@ -1,5 +1,4 @@
-import React, { useState } from 'react';
-import { MOCK_AUDIT_LOGS } from '../../lib/mockData';
+import React, { useState, useEffect } from 'react';
 import { AuditLogItem } from '../../types/trading';
 import {
   FileText, Search, ShieldCheck, Hash, Download, Filter,
@@ -27,20 +26,34 @@ const EVENT_ICONS: Record<string, React.ReactNode> = {
   GOVERNANCE_ALERT: <ShieldAlert size={13} />,
 };
 
-const INITIAL_EXTRA_LOGS: AuditLogItem[] = [
-  { id: 'AUD-006', timestamp: '2026-09-26 11:05:12', actor: 'Zerodha Kite API', event: 'TRADE_CREATED', entity: 'TRD-IN-00103 (BANK NIFTY)', hash: 'fa91b2e83c1104cd8372b89a', status: 'SUCCESS' },
-  { id: 'AUD-007', timestamp: '2026-09-26 11:10:30', actor: 'Algo Engine (Upstox API)', event: 'BLOCK_COMMITTED', entity: 'Consensus Block #4280', hash: 'b2e83c1104cd8372b91fac21', status: 'SUCCESS' },
-  { id: 'AUD-008', timestamp: '2026-09-26 11:15:44', actor: 'Chief Risk Officer', event: 'RISK_LIMIT_MODIFIED', entity: 'Max Drawdown Cap → 5.0%', hash: 'c1104cd8372b91fab2e83441', status: 'SUCCESS' },
-  { id: 'AUD-009', timestamp: '2026-09-26 11:22:01', actor: 'SEBI Audit Node #3', event: 'VERIFICATION_EXECUTED', entity: 'Merkle Proof TRD-IN-00102', hash: '04cd8372b91fab2e83c11782', status: 'SUCCESS' },
-  { id: 'AUD-010', timestamp: '2026-09-26 11:28:18', actor: 'Algo Engine (Upstox API)', event: 'TRADE_CREATED', entity: 'TRD-IN-00102 (RELIANCE EQ)', hash: '372b91fab2e83c1104cd899a', status: 'SUCCESS' },
-  { id: 'AUD-011', timestamp: '2026-09-26 11:32:00', actor: 'Consortium Quorum Node #1', event: 'GOVERNANCE_ALERT', entity: 'PoA Node Key Rotation Verified', hash: '88fab2e83c1104cd8372b110', status: 'SUCCESS' }
+const INITIAL_AUDIT_TRAIL: AuditLogItem[] = [
+  { id: 'AUD-IN-901', timestamp: '2026-09-28 10:15:30', actor: 'Algo Engine (Upstox API)', event: 'TRADE_CREATED', entity: 'TRD-IN-00104 (NIFTY 50 Futures)', hash: '8c7f91a92bc08912f4ca148803ef92e1', status: 'SUCCESS' },
+  { id: 'AUD-IN-902', timestamp: '2026-09-28 10:15:31', actor: 'Blockchain Node', event: 'BLOCK_COMMITTED', entity: 'Consensus Block #4281', hash: '00000ab92f8c14d97e3b901fc8129e77', status: 'SUCCESS' },
+  { id: 'AUD-IN-903', timestamp: '2026-09-28 10:20:04', actor: 'Sunny Prasad (Admin)', event: 'STRATEGY_UPDATED', entity: 'NIFTY EMA + RSI v1.2', hash: '92ac71b04a871092eac431102948bbcc', status: 'SUCCESS' },
+  { id: 'AUD-IN-904', timestamp: '2026-09-28 10:30:12', actor: 'SEBI Risk Engine', event: 'RISK_LIMIT_MODIFIED', entity: 'Single Position Cap Limit', hash: 'e48271018fa9c01192e8471b049a8b00', status: 'SUCCESS' },
+  { id: 'AUD-IN-905', timestamp: '2026-09-28 10:45:00', actor: 'Auditor (External Reg)', event: 'VERIFICATION_EXECUTED', entity: 'Cryptographic Attestation #881', hash: '12ef88019a27c011bc9948a7281014e2', status: 'SUCCESS' },
+  { id: 'AUD-006', timestamp: '2026-09-28 11:05:12', actor: 'Zerodha Kite API', event: 'TRADE_CREATED', entity: 'TRD-IN-00103 (BANK NIFTY)', hash: 'fa91b2e83c1104cd8372b89a', status: 'SUCCESS' },
+  { id: 'AUD-007', timestamp: '2026-09-28 11:10:30', actor: 'Algo Engine (Upstox API)', event: 'BLOCK_COMMITTED', entity: 'Consensus Block #4280', hash: 'b2e83c1104cd8372b91fac21', status: 'SUCCESS' },
+  { id: 'AUD-008', timestamp: '2026-09-28 11:15:44', actor: 'Chief Risk Officer', event: 'RISK_LIMIT_MODIFIED', entity: 'Max Drawdown Cap → 5.0%', hash: 'c1104cd8372b91fab2e83441', status: 'SUCCESS' },
+  { id: 'AUD-009', timestamp: '2026-09-28 11:22:01', actor: 'SEBI Audit Node #3', event: 'VERIFICATION_EXECUTED', entity: 'Merkle Proof TRD-IN-00102', hash: '04cd8372b91fab2e83c11782', status: 'SUCCESS' },
+  { id: 'AUD-010', timestamp: '2026-09-28 11:28:18', actor: 'Algo Engine (Upstox API)', event: 'TRADE_CREATED', entity: 'TRD-IN-00102 (RELIANCE EQ)', hash: '372b91fab2e83c1104cd899a', status: 'SUCCESS' },
+  { id: 'AUD-011', timestamp: '2026-09-28 11:32:00', actor: 'Consortium Quorum Node #1', event: 'GOVERNANCE_ALERT', entity: 'PoA Node Key Rotation Verified', hash: '88fab2e83c1104cd8372b110', status: 'SUCCESS' }
 ];
 
 export const AuditLogPage: React.FC = () => {
-  const [logs, setLogs] = useState<AuditLogItem[]>([
-    ...MOCK_AUDIT_LOGS,
-    ...INITIAL_EXTRA_LOGS
-  ].sort((a, b) => b.timestamp.localeCompare(a.timestamp)));
+  const [logs, setLogs] = useState<AuditLogItem[]>(() => {
+    try {
+      const saved = localStorage.getItem('tradechain_audit_logs');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return INITIAL_AUDIT_TRAIL.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('tradechain_audit_logs', JSON.stringify(logs));
+    } catch {}
+  }, [logs]);
 
   const [filterQuery, setFilterQuery] = useState('');
   const [selectedEventType, setSelectedEventType] = useState<string>('ALL');

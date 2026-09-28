@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { MOCK_RISK_RULES } from '../../lib/mockData';
 import { RiskRule, ActivePosition, TradeRecord } from '../../types/trading';
 import { 
   ShieldCheck, 
@@ -19,6 +18,59 @@ import {
   Edit2
 } from 'lucide-react';
 
+export const SEBI_DEFAULT_RISK_RULES: RiskRule[] = [
+  {
+    id: 'RULE-IN-01',
+    name: 'SEBI Maximum Daily Loss Cap',
+    key: 'max_daily_loss',
+    currentValue: '₹0.00',
+    limitValue: '₹5,000.00 (5%)',
+    enabled: true,
+    status: 'SAFE',
+    description: 'Automated emergency circuit breaker halting all bot execution if intraday loss reaches limit.'
+  },
+  {
+    id: 'RULE-IN-02',
+    name: 'Single Position Allocation Cap',
+    key: 'max_position_size',
+    currentValue: '₹0.00',
+    limitValue: '₹25,000.00 (25%)',
+    enabled: true,
+    status: 'SAFE',
+    description: 'Caps individual margin commitment per F&O contract or equity symbol to prevent concentration.'
+  },
+  {
+    id: 'RULE-IN-03',
+    name: 'NSE Exchange SL Order Lock',
+    key: 'stop_loss_pct',
+    currentValue: '1.0% Fixed',
+    limitValue: '1.0% Stop Loss',
+    enabled: true,
+    status: 'SAFE',
+    description: 'Mandatory automated Stop Loss order placing on Upstox / Groww / Zerodha broker gateways.'
+  },
+  {
+    id: 'RULE-IN-04',
+    name: 'Trailing Profit Lock-in Ladder',
+    key: 'take_profit_pct',
+    currentValue: '2.5%',
+    limitValue: '2.5% Target / 0.5% Trail',
+    enabled: true,
+    status: 'SAFE',
+    description: 'Automatically trails peak price once target is achieved to protect realized intraday profits.'
+  },
+  {
+    id: 'RULE-IN-05',
+    name: 'Max Concurrent Open Positions',
+    key: 'max_open_positions',
+    currentValue: '0 Active',
+    limitValue: '3 Contracts Max',
+    enabled: true,
+    status: 'SAFE',
+    description: 'Limits simultaneous exposure across NIFTY, Bank NIFTY, and Equity derivatives.'
+  }
+];
+
 interface RiskManagementCenterProps {
   positions?: ActivePosition[];
   trades?: TradeRecord[];
@@ -32,7 +84,13 @@ export const RiskManagementCenter: React.FC<RiskManagementCenterProps> = ({
   niftyPrice = 24850,
   onClosePosition
 }) => {
-  const [rules, setRules] = useState<RiskRule[]>(MOCK_RISK_RULES);
+  const [rules, setRules] = useState<RiskRule[]>(() => {
+    try {
+      const saved = localStorage.getItem('tradechain_risk_rules');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return SEBI_DEFAULT_RISK_RULES;
+  });
   const [editingRule, setEditingRule] = useState<RiskRule | null>(null);
   const [newLimitVal, setNewLimitVal] = useState('');
   const [activeTab, setActiveTab] = useState<'RULES' | 'STRESS_TEST' | 'AUDIT_LOGS'>('RULES');
@@ -77,7 +135,7 @@ export const RiskManagementCenter: React.FC<RiskManagementCenterProps> = ({
   };
 
   const handleResetDefaults = () => {
-    setRules(MOCK_RISK_RULES);
+    setRules(SEBI_DEFAULT_RISK_RULES);
     alert('Risk guardrails reset to regulatory SEBI & NSE default guidelines.');
   };
 

@@ -1,6 +1,72 @@
-import React, { useState, useMemo } from 'react';
-import { MOCK_STRATEGIES } from '../../lib/mockData';
+import React, { useState, useMemo, useEffect } from 'react';
 import { StrategyConfig } from '../../types/trading';
+
+export const DEFAULT_STRATEGIES: StrategyConfig[] = [
+  {
+    id: 'STRAT-NSE-01',
+    name: 'NIFTY EMA + RSI Momentum',
+    version: 'v1.2.0',
+    status: 'ACTIVE',
+    hash: '0x92ac71b04a871092eac431102948bbcca428',
+    winRate: 71.4,
+    backtestReturn: 22.85,
+    maxDrawdown: 6.42,
+    totalTrades: 168,
+    description: 'Intraday trend-following on NIFTY 50 & Bank NIFTY futures using 20/50 EMA cross with 14-period RSI filter.',
+    parameters: {
+      emaShort: 20,
+      emaLong: 50,
+      rsiPeriod: 14,
+      rsiLower: 45,
+      rsiUpper: 65,
+      stopLossPct: 1.0,
+      takeProfitPct: 2.5
+    }
+  },
+  {
+    id: 'STRAT-NSE-02',
+    name: 'Bank Nifty MACD Breakout',
+    version: 'v0.9.4',
+    status: 'ACTIVE',
+    hash: '0x1b44d21098ef42710a8b9e01192e48271018',
+    winRate: 64.2,
+    backtestReturn: 18.40,
+    maxDrawdown: 8.20,
+    totalTrades: 112,
+    description: 'Exploits high-beta volatility momentum in Bank Nifty index options & futures on 15m MACD zero-line breakouts.',
+    parameters: {
+      emaShort: 12,
+      emaLong: 26,
+      rsiPeriod: 14,
+      rsiLower: 40,
+      rsiUpper: 70,
+      stopLossPct: 1.5,
+      takeProfitPct: 3.5
+    }
+  },
+  {
+    id: 'STRAT-NSE-03',
+    name: 'Reliance VWAP Mean Reversion',
+    version: 'v2.1.0',
+    status: 'ACTIVE',
+    hash: '0x71a42bc91000f129bc4892c90a8e104192b7',
+    winRate: 74.8,
+    backtestReturn: 26.50,
+    maxDrawdown: 5.10,
+    totalTrades: 245,
+    description: 'Statistical arbitrage on heavy-weight NIFTY stocks (Reliance, HDFC Bank, TCS, ICICI Bank) returning to 1-minute VWAP bands.',
+    parameters: {
+      emaShort: 20,
+      emaLong: 20,
+      rsiPeriod: 14,
+      rsiLower: 30,
+      rsiUpper: 70,
+      stopLossPct: 0.8,
+      takeProfitPct: 2.0
+    }
+  }
+];
+
 import { 
   Layers, 
   Play, 
@@ -51,7 +117,13 @@ interface StrategyLabProps {
 }
 
 export const StrategyLab: React.FC<StrategyLabProps> = ({ onNavigateToBacktest }) => {
-  const [strategies, setStrategies] = useState<StrategyConfig[]>(MOCK_STRATEGIES);
+  const [strategies, setStrategies] = useState<StrategyConfig[]>(() => {
+    try {
+      const saved = localStorage.getItem('tradechain_custom_strategies');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return DEFAULT_STRATEGIES;
+  });
   const [activeTab, setActiveTab] = useState<'registry' | 'performance' | 'optimizer' | 'code'>('registry');
   
   // Search & Filter State
@@ -73,8 +145,15 @@ export const StrategyLab: React.FC<StrategyLabProps> = ({ onNavigateToBacktest }
   const [newStopLoss, setNewStopLoss] = useState(1.5);
   const [newTakeProfit, setNewTakeProfit] = useState(3.5);
 
+  // Save changes to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem('tradechain_custom_strategies', JSON.stringify(strategies));
+    } catch {}
+  }, [strategies]);
+
   // Optimizer Sandbox State
-  const [selectedOptStrat, setSelectedOptStrat] = useState<string>(MOCK_STRATEGIES[0]?.name || 'NIFTY VWAP Pullback');
+  const [selectedOptStrat, setSelectedOptStrat] = useState<string>(DEFAULT_STRATEGIES[0]?.name || 'NIFTY VWAP Pullback');
   const [optFastEma, setOptFastEma] = useState(21);
   const [optSlowEma, setOptSlowEma] = useState(55);
   const [optRsiLower, setOptRsiLower] = useState(32);
@@ -97,7 +176,7 @@ export const StrategyLab: React.FC<StrategyLabProps> = ({ onNavigateToBacktest }
   });
 
   // Selected Strategy for Code Inspector
-  const [selectedCodeStrat, setSelectedCodeStrat] = useState<StrategyConfig>(MOCK_STRATEGIES[0]);
+  const [selectedCodeStrat, setSelectedCodeStrat] = useState<StrategyConfig>(DEFAULT_STRATEGIES[0]);
 
   // Filtered Strategies
   const filteredStrategies = useMemo(() => {

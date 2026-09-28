@@ -7,7 +7,6 @@ import {
   NavPage,
   AISignalData
 } from '../../types/trading';
-import { MOCK_SIGNAL } from '../../lib/mockData';
 import { generateLiveAIMarketSignal } from '../../lib/ai';
 import { KPICards } from './KPICards';
 import { TradingChart } from './TradingChart';
@@ -195,7 +194,24 @@ export const OverviewDesk: React.FC<OverviewDeskProps> = ({
   };
 
   // Live AI Market Signal state
-  const [liveSignal, setLiveSignal] = useState<AISignalData>(MOCK_SIGNAL);
+  const INITIAL_LIVE_SIGNAL: AISignalData = {
+    state: 'NEUTRAL',
+    asset: selectedPair,
+    confidence: 75,
+    timestamp: 'Live Scanner',
+    strategyName: 'Quant EMA + RSI Scanner',
+    strategyVersion: 'v2.4',
+    strategyHash: '0x92ac71b04a871092eac431102948bbcca428e1041',
+    indicators: {
+      ema20: 0,
+      ema50: 0,
+      rsi: 50,
+      macdStatus: 'CONVERGING',
+      macdHist: 0
+    },
+    rationale: 'Connecting to live market feed and initializing institutional quantitative scanner...'
+  };
+  const [liveSignal, setLiveSignal] = useState<AISignalData>(INITIAL_LIVE_SIGNAL);
   const [isAnalyzingSignal, setIsAnalyzingSignal] = useState(false);
   const [isExecutingSignal, setIsExecutingSignal] = useState(false);
 

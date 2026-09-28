@@ -1,14 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { NavPage, TradeRecord, ActivePosition, BlockHeader, CandlestickData } from './types/trading';
 import { 
-  INITIAL_CANDLESTICKS, 
-  MOCK_TRADES, 
-  MOCK_POSITIONS, 
-  MOCK_SIGNAL, 
-  MOCK_BLOCKS,
-  generateAssetCandles
-} from './lib/mockData';
-import { 
   fetchTradesFromDB, 
   fetchPositionsFromDB, 
   fetchBlocksFromDB, 
@@ -73,7 +65,7 @@ export function App() {
   const [niftyPrice, setNiftyPrice] = useState(24850.40);
   const [niftyChange, setNiftyChange] = useState(0.64);
   const [selectedPair, setSelectedPair] = useState('NIFTY 50 Futures');
-  const [candles, setCandles] = useState<CandlestickData[]>(INITIAL_CANDLESTICKS);
+  const [candles, setCandles] = useState<CandlestickData[]>([]);
   const [positions, setPositions] = useState<ActivePosition[]>(() => {
     try {
       const saved = localStorage.getItem('tradechain_positions');
@@ -84,7 +76,7 @@ export function App() {
     } catch (e) {
       console.warn('Failed to load positions from localStorage', e);
     }
-    return MOCK_POSITIONS;
+    return [];
   });
 
   const [trades, setTrades] = useState<TradeRecord[]>(() => {
@@ -97,7 +89,7 @@ export function App() {
     } catch (e) {
       console.warn('Failed to load trades from localStorage', e);
     }
-    return MOCK_TRADES;
+    return [];
   });
 
   const [blocks, setBlocks] = useState<BlockHeader[]>(() => {
@@ -110,8 +102,40 @@ export function App() {
     } catch (e) {
       console.warn('Failed to load blocks from localStorage', e);
     }
-    return MOCK_BLOCKS;
+    return [];
   });
+
+  // Automatically sync live Upstox portfolio positions when token is connected
+  useEffect(() => {
+    async function syncUpstoxPortfolio() {
+      const token = upstoxService.getToken();
+      if (!token) return;
+      try {
+        const res = await upstoxService.getPositions();
+        if (res?.status === 'success' && Array.isArray(res.data) && res.data.length > 0) {
+          const livePos: ActivePosition[] = res.data.map((p: any, idx: number) => ({
+            id: `POS-UPSTOX-${idx + 1}`,
+            asset: p.trading_symbol || p.symbol || 'NIFTY 50 Futures',
+            side: Number(p.quantity) >= 0 ? 'BUY' : 'SELL',
+            entryPrice: Number(p.buy_price || p.average_price || 0),
+            currentPrice: Number(p.last_price || p.close_price || p.buy_price || 0),
+            quantity: Math.abs(Number(p.quantity || 1)),
+            totalValue: Number(p.value || (p.last_price * Math.abs(p.quantity)) || 0),
+            unrealizedPnl: Number(p.pnl || p.realised_profit || 0),
+            unrealizedPnlPercent: Number(p.pnl_percentage || 0),
+            stopLoss: Number(p.stop_loss || 0),
+            takeProfit: Number(p.target || 0),
+            leverage: 1,
+            openedAt: new Date().toLocaleTimeString('en-IN', { hour12: false })
+          }));
+          setPositions(livePos);
+        }
+      } catch (err) {
+        console.warn('[TradeChain] Upstox positions live sync notice:', err);
+      }
+    }
+    syncUpstoxPortfolio();
+  }, []);
 
   // Sync state mutations to localStorage
   useEffect(() => {
@@ -640,8 +664,8 @@ export function App() {
         onClose={() => setIsCommandPaletteOpen(false)}
         onSelectPage={(page) => setActivePage(page)}
         onSelectTrade={(tradeId) => {
-          const trd = MOCK_TRADES.find(t => t.id === tradeId) || MOCK_TRADES[0];
-          setSelectedTrade(trd);
+          const trd = trades.find(t => t.id === tradeId) || trades[0];
+          if (trd) setSelectedTrade(trd);
         }}
       />
 
@@ -651,8 +675,8 @@ export function App() {
         onClose={() => setIsAIAssistantOpen(false)}
         onSelectPage={(page) => setActivePage(page)}
         onSelectTrade={(tradeId) => {
-          const trd = MOCK_TRADES.find(t => t.id === tradeId) || MOCK_TRADES[0];
-          setSelectedTrade(trd);
+          const trd = trades.find(t => t.id === tradeId) || trades[0];
+          if (trd) setSelectedTrade(trd);
         }}
         marketContext={{
           niftyPrice,
