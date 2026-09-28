@@ -18,6 +18,8 @@ import {
   saveBlockToDB, 
   recordAuditLog 
 } from './lib/supabase';
+import { marketDataEngine } from './lib/marketData';
+import { upstoxService } from './lib/upstoxService';
 
 // Layout Components
 import { Sidebar } from './components/layout/Sidebar';
@@ -130,40 +132,45 @@ export function App() {
     } catch {}
   }, [blocks]);
 
-  // Dynamic asset candle and price generator when selectedPair switches
+  // Start real-time Market Data Engine streaming
   useEffect(() => {
-    let basePrice = 24850.40;
-    let changePct = 0.64;
+    marketDataEngine.startStreaming();
+    return () => marketDataEngine.stopStreaming();
+  }, []);
 
-    if (selectedPair.includes('BANK NIFTY') || selectedPair.includes('BANKNIFTY')) {
-      basePrice = 51340.25;
-      changePct = 0.82;
-    } else if (selectedPair.includes('FIN NIFTY') || selectedPair.includes('FINNIFTY')) {
-      basePrice = 23115.80;
-      changePct = 0.45;
-    } else if (selectedPair.includes('SENSEX')) {
-      basePrice = 81480.10;
-      changePct = 0.61;
-    } else if (selectedPair.includes('RELIANCE')) {
-      basePrice = 3042.80;
-      changePct = 0.85;
-    } else if (selectedPair.includes('TCS')) {
-      basePrice = 4290.50;
-      changePct = -0.32;
-    } else if (selectedPair.includes('BTC')) {
-      basePrice = 5785400.00;
-      changePct = 2.85;
-    } else if (selectedPair.includes('24800 CE')) {
-      basePrice = 168.20;
-      changePct = 18.04;
-    } else if (selectedPair.includes('51500 PE')) {
-      basePrice = 312.40;
-      changePct = 9.61;
+  // Subscribe to live market quotes to keep NIFTY / benchmark prices genuinely updated
+  useEffect(() => {
+    const unsub = marketDataEngine.subscribeQuotes(() => {
+      const q = marketDataEngine.getCachedQuote(selectedPair);
+      if (q && q.price > 0) {
+        setNiftyPrice(q.price);
+        setNiftyChange(q.changePct);
+      }
+    });
+    return unsub;
+  }, [selectedPair]);
+
+  // Fetch real-time quotes and historical candlestick charts from Yahoo Finance on symbol switch
+  useEffect(() => {
+    let isCancelled = false;
+    async function loadPairTelemetry() {
+      try {
+        const quote = await marketDataEngine.getQuote(selectedPair);
+        if (!isCancelled && quote && quote.price > 0) {
+          setNiftyPrice(quote.price);
+          setNiftyChange(quote.changePct);
+        }
+
+        const liveCandles = await marketDataEngine.getCandles(selectedPair, '15m');
+        if (!isCancelled && liveCandles && liveCandles.length > 0) {
+          setCandles(liveCandles);
+        }
+      } catch (err) {
+        console.warn('Market feed loading error:', err);
+      }
     }
-
-    setNiftyPrice(basePrice);
-    setNiftyChange(changePct);
-    setCandles(generateAssetCandles(selectedPair, basePrice));
+    loadPairTelemetry();
+    return () => { isCancelled = true; };
   }, [selectedPair]);
 
   // Initial fetch & synchronization from Supabase database (respecting user deletions)
@@ -267,35 +274,15 @@ export function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // Live Market Ticker interval simulation (NSE Ticks)
+  // Keep positions unrealized PnL synchronized with live price ticks
   useEffect(() => {
-    const ticker = setInterval(() => {
-      const delta = (Math.random() - 0.48) * 8.5;
-      setNiftyPrice(prev => {
-        const next = Math.max(22000, prev + delta);
-        return Math.round(next * 100) / 100;
-      });
-
-      setCandles(prev => {
-        if (prev.length === 0) return prev;
-        const last = { ...prev[prev.length - 1] };
-        last.close = Math.round((last.close + delta * 0.2) * 100) / 100;
-        last.high = Math.max(last.high, last.close);
-        last.low = Math.min(last.low, last.close);
-        return [...prev.slice(0, prev.length - 1), last];
-      });
-
-      // Update positions unrealized PnL based on live tick
-      setPositions(prev => prev.map(p => {
-        const pnl = p.side === 'BUY' 
-          ? Math.round((niftyPrice - p.entryPrice) * p.quantity * 100) / 100
-          : Math.round((p.entryPrice - niftyPrice) * p.quantity * 100) / 100;
-        const pnlPct = Math.round((pnl / (p.entryPrice * p.quantity)) * 10000) / 100;
-        return { ...p, currentPrice: niftyPrice, unrealizedPnl: pnl, unrealizedPnlPercent: pnlPct };
-      }));
-    }, 3000);
-
-    return () => clearInterval(ticker);
+    setPositions(prev => prev.map(p => {
+      const pnl = p.side === 'BUY' 
+        ? Math.round((niftyPrice - p.entryPrice) * p.quantity * 100) / 100
+        : Math.round((p.entryPrice - niftyPrice) * p.quantity * 100) / 100;
+      const pnlPct = Math.round((pnl / (p.entryPrice * p.quantity)) * 10000) / 100;
+      return { ...p, currentPrice: niftyPrice, unrealizedPnl: pnl, unrealizedPnlPercent: pnlPct };
+    }));
   }, [niftyPrice]);
 
   // Order Execution Handler across platform
@@ -666,6 +653,11 @@ export function App() {
         onSelectTrade={(tradeId) => {
           const trd = MOCK_TRADES.find(t => t.id === tradeId) || MOCK_TRADES[0];
           setSelectedTrade(trd);
+        }}
+        marketContext={{
+          niftyPrice,
+          selectedPair,
+          sectors: marketDataEngine.getCachedSectors()
         }}
       />
 

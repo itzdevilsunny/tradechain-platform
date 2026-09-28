@@ -1,12 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   ActivePosition,
   TradeRecord,
   CandlestickData,
   BlockHeader,
-  NavPage
+  NavPage,
+  AISignalData
 } from '../../types/trading';
 import { MOCK_SIGNAL } from '../../lib/mockData';
+import { generateLiveAIMarketSignal } from '../../lib/ai';
 import { KPICards } from './KPICards';
 import { TradingChart } from './TradingChart';
 import { SignalPanel } from './SignalPanel';
@@ -64,10 +66,15 @@ interface OverviewDeskProps {
   onRefreshData?: () => Promise<void> | void;
 }
 
+import { marketDataEngine, SectorItem } from '../../lib/marketData';
+
 interface SectorMover {
   name: string;
+  ticker?: string;
+  price?: number;
   change: number;
   momentum: 'BULLISH' | 'BEARISH' | 'NEUTRAL';
+  lastUpdated?: string;
 }
 
 export const OverviewDesk: React.FC<OverviewDeskProps> = ({
@@ -119,27 +126,126 @@ export const OverviewDesk: React.FC<OverviewDeskProps> = ({
   // India VIX Analytics Modal state
   const [isVixModalOpen, setIsVixModalOpen] = useState(false);
 
-  // Live market walking ticks for benchmark indices
-  useEffect(() => {
-    const pulseInterval = setInterval(() => {
-      setBankNiftyPrice(prev => Math.round((prev + (Math.random() - 0.49) * 12.5) * 100) / 100);
-      setFinNiftyPrice(prev => Math.round((prev + (Math.random() - 0.49) * 5.8) * 100) / 100);
-      setSensexPrice(prev => Math.round((prev + (Math.random() - 0.49) * 18.0) * 100) / 100);
-      setIndiaVixPrice(prev => Math.max(9.5, Math.min(28.0, Math.round((prev + (Math.random() - 0.5) * 0.06) * 100) / 100)));
-    }, 2400);
+  // Sector Data with genuine live feeds
+  const [sectors, setSectors] = useState<SectorMover[]>([
+    { name: 'NIFTY IT', ticker: '^CNXIT', change: 1.42, momentum: 'BULLISH' },
+    { name: 'BANK NIFTY', ticker: '^NSEBANK', change: 0.88, momentum: 'BULLISH' },
+    { name: 'NIFTY AUTO', ticker: '^CNXAUTO', change: -0.35, momentum: 'BEARISH' },
+    { name: 'NIFTY PHARMA', ticker: '^CNXPHARMA', change: 0.62, momentum: 'BULLISH' },
+    { name: 'NIFTY METAL', ticker: '^CNXMETAL', change: 1.75, momentum: 'BULLISH' },
+    { name: 'NIFTY FMCG', ticker: '^CNXFMCG', change: -0.18, momentum: 'NEUTRAL' }
+  ]);
+  const [sectorLastUpdate, setSectorLastUpdate] = useState<string>('Just now');
+  const [isSectorLoading, setIsSectorLoading] = useState(false);
 
-    return () => clearInterval(pulseInterval);
+  // Subscribe to Live Market Data Engine for Benchmark Indices and 60s Sector Heatmap
+  useEffect(() => {
+    // 1. Subscribe to Live Benchmark Indices
+    const unsubQuotes = marketDataEngine.subscribeQuotes((quotes) => {
+      const bn = quotes.get('^NSEBANK');
+      if (bn && bn.price > 0) {
+        setBankNiftyPrice(bn.price);
+        setBankNiftyChange(bn.changePct);
+      }
+
+      const fn = quotes.get('NIFTY_FIN_SERVICE.NS') || quotes.get('^CNXFIN');
+      if (fn && fn.price > 0) {
+        setFinNiftyPrice(fn.price);
+        setFinNiftyChange(fn.changePct);
+      }
+
+      const sn = quotes.get('^BSESN');
+      if (sn && sn.price > 0) {
+        setSensexPrice(sn.price);
+        setSensexChange(sn.changePct);
+      }
+
+      const vx = quotes.get('^INDIAVIX');
+      if (vx && vx.price > 0) {
+        setIndiaVixPrice(vx.price);
+        setIndiaVixChange(vx.changePct);
+      }
+    });
+
+    // 2. Subscribe to Genuine 60s Sector Heatmap
+    const unsubSectors = marketDataEngine.subscribeSectors((liveSectors) => {
+      if (liveSectors && liveSectors.length > 0) {
+        setSectors(liveSectors);
+        setSectorLastUpdate(new Date().toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour12: false }) + ' IST');
+      }
+    });
+
+    return () => {
+      unsubQuotes();
+      unsubSectors();
+    };
   }, []);
 
-  // Sector Data
-  const [sectors, setSectors] = useState<SectorMover[]>([
-    { name: 'NIFTY IT', change: 1.42, momentum: 'BULLISH' },
-    { name: 'BANK NIFTY', change: 0.88, momentum: 'BULLISH' },
-    { name: 'NIFTY AUTO', change: -0.35, momentum: 'BEARISH' },
-    { name: 'NIFTY PHARMA', change: 0.62, momentum: 'BULLISH' },
-    { name: 'NIFTY METAL', change: 1.75, momentum: 'BULLISH' },
-    { name: 'NIFTY FMCG', change: -0.18, momentum: 'NEUTRAL' }
-  ]);
+  const handleRefreshSectorHeatmap = async () => {
+    setIsSectorLoading(true);
+    try {
+      const fresh = await marketDataEngine.fetchSectorHeatmap();
+      if (fresh && fresh.length > 0) {
+        setSectors(fresh);
+        setSectorLastUpdate(new Date().toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour12: false }) + ' IST');
+      }
+    } finally {
+      setIsSectorLoading(false);
+    }
+  };
+
+  // Live AI Market Signal state
+  const [liveSignal, setLiveSignal] = useState<AISignalData>(MOCK_SIGNAL);
+  const [isAnalyzingSignal, setIsAnalyzingSignal] = useState(false);
+  const [isExecutingSignal, setIsExecutingSignal] = useState(false);
+
+  const handleReanalyzeSignal = useCallback(async () => {
+    setIsAnalyzingSignal(true);
+    try {
+      const freshSignal = await generateLiveAIMarketSignal({
+        asset: selectedPair,
+        price: niftyPrice,
+        changePct: niftyChange,
+        candles,
+        sectors
+      });
+      setLiveSignal(freshSignal);
+    } catch (err) {
+      console.warn('[OverviewDesk] AI Signal analysis failed', err);
+    } finally {
+      setIsAnalyzingSignal(false);
+    }
+  }, [selectedPair, niftyPrice, niftyChange, candles, sectors]);
+
+  // Initial and pair change AI analysis
+  useEffect(() => {
+    handleReanalyzeSignal();
+  }, [selectedPair]);
+
+  // Periodic live 45s AI scanner
+  useEffect(() => {
+    const timer = setInterval(() => {
+      handleReanalyzeSignal();
+    }, 45000);
+    return () => clearInterval(timer);
+  }, [handleReanalyzeSignal]);
+
+  const handleExecuteAISignal = () => {
+    if (liveSignal.state === 'NEUTRAL') return;
+    setIsExecutingSignal(true);
+    try {
+      onExecuteOrder({
+        symbol: selectedPair,
+        side: liveSignal.state,
+        type: 'MARKET',
+        qty: 50,
+        price: niftyPrice,
+        broker: 'Upstox Pro API'
+      });
+    } finally {
+      setTimeout(() => setIsExecutingSignal(false), 800);
+    }
+  };
 
   // Live Pulse Indices
   const indices = [
@@ -444,8 +550,12 @@ export const OverviewDesk: React.FC<OverviewDeskProps> = ({
 
         <div>
           <SignalPanel
-            signal={MOCK_SIGNAL}
+            signal={liveSignal}
             onOpenAIModal={onOpenAIModal}
+            onReanalyze={handleReanalyzeSignal}
+            isAnalyzing={isAnalyzingSignal}
+            onExecuteSignal={handleExecuteAISignal}
+            isExecuting={isExecutingSignal}
           />
         </div>
       </div>
@@ -456,12 +566,24 @@ export const OverviewDesk: React.FC<OverviewDeskProps> = ({
           <div className="flex items-center gap-2">
             <Flame size={15} className="text-[#F59E0B]" />
             <span className="font-bold text-slate-900 dark:text-[#F1F5F9]">NSE Sector Performance & Breadth</span>
-            <span className="text-[10px] text-slate-400">1-Min Tick Feed</span>
+            <span className="px-2 py-0.5 rounded text-[9px] font-bold bg-[#10B981]/15 text-[#10B981] border border-[#10B981]/30 flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#10B981] animate-pulse" />
+              LIVE 60s STREAM (^CNXIT, ^NSEBANK, ^CNXPHARMA)
+            </span>
+            <span className="text-[10px] text-slate-400 hidden sm:inline">Updated: {sectorLastUpdate}</span>
           </div>
-          <div className="flex items-center gap-4 text-[11px] text-slate-500">
-            <span>Advances: <strong className="text-[#10B981]">1,428</strong></span>
-            <span>Declines: <strong className="text-[#EF4444]">792</strong></span>
-            <span>A/D Ratio: <strong className="text-slate-900 dark:text-[#F1F5F9]">1.80</strong></span>
+          <div className="flex items-center gap-3 text-[11px] text-slate-500">
+            <button
+              onClick={handleRefreshSectorHeatmap}
+              disabled={isSectorLoading}
+              className="px-2 py-1 rounded bg-slate-100 dark:bg-[#161D2A] border border-slate-200 dark:border-[#1E2633] hover:text-[#3B82F6] flex items-center gap-1 text-[10px] transition-all disabled:opacity-50"
+              title="Refresh Sector Tickers"
+            >
+              <RefreshCw size={11} className={isSectorLoading ? 'animate-spin text-[#3B82F6]' : ''} />
+              <span>{isSectorLoading ? 'Syncing...' : 'Poll Now'}</span>
+            </button>
+            <span className="hidden md:inline">Advances: <strong className="text-[#10B981]">1,428</strong></span>
+            <span className="hidden md:inline">Declines: <strong className="text-[#EF4444]">792</strong></span>
             <span className="text-[#3B82F6] font-bold">FII Net: +₹1,240 Cr</span>
           </div>
         </div>
@@ -472,12 +594,20 @@ export const OverviewDesk: React.FC<OverviewDeskProps> = ({
             return (
               <div
                 key={sec.name}
-                className="p-2.5 rounded-lg bg-slate-50 dark:bg-[#111620] border border-slate-200 dark:border-[#1E2633] flex items-center justify-between"
+                className="p-2.5 rounded-lg bg-slate-50 dark:bg-[#111620] border border-slate-200 dark:border-[#1E2633] flex items-center justify-between hover:border-slate-400 dark:hover:border-[#334155] transition-all"
               >
-                <span className="font-medium text-slate-700 dark:text-[#94A3B8]">{sec.name}</span>
-                <span className={`font-bold ${isBull ? 'text-[#10B981]' : 'text-[#EF4444]'}`}>
-                  {isBull ? '+' : ''}{sec.change}%
-                </span>
+                <div>
+                  <div className="font-semibold text-slate-700 dark:text-[#94A3B8]">{sec.name}</div>
+                  {sec.ticker && <div className="text-[9px] text-slate-400">{sec.ticker}</div>}
+                </div>
+                <div className="text-right">
+                  <span className={`font-bold block ${isBull ? 'text-[#10B981]' : 'text-[#EF4444]'}`}>
+                    {isBull ? '+' : ''}{sec.change.toFixed(2)}%
+                  </span>
+                  {sec.price ? (
+                    <span className="text-[9px] text-slate-400">₹{sec.price.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</span>
+                  ) : null}
+                </div>
               </div>
             );
           })}

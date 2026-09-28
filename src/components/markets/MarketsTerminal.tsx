@@ -19,6 +19,8 @@ import {
   Radio,
   Cpu
 } from 'lucide-react';
+import { marketDataEngine } from '../../lib/marketData';
+import { upstoxService } from '../../lib/upstoxService';
 
 interface MarketsTerminalProps {
   candles: CandlestickData[];
@@ -125,12 +127,27 @@ export const MarketsTerminal: React.FC<MarketsTerminalProps> = ({
     const initialPrice = selectedPair === 'BANK NIFTY Futures' ? 53420.15 : selectedPair === 'RELIANCE IND' ? 3042.80 : selectedPair === 'TCS' ? 4290.50 : selectedPair === 'HDFC BANK' ? 1675.20 : selectedPair === 'BTC / INR' ? 5785400 : niftyPrice;
     return generateAssetCandles(selectedPair, initialPrice);
   });
+  const [isChartLoading, setIsChartLoading] = useState(false);
 
-  // Regenerate asset candles on selectedPair change
+  // Fetch genuine live candlestick charts from Yahoo Finance on selectedPair or timeframe switch
   useEffect(() => {
-    const item = watchlist.find(w => w.symbol === selectedPair) || watchlist[0];
-    setAssetCandles(generateAssetCandles(selectedPair, item.price));
-  }, [selectedPair]);
+    let isCancelled = false;
+    async function loadCandles() {
+      setIsChartLoading(true);
+      try {
+        const liveCandles = await marketDataEngine.getCandles(selectedPair, selectedTimeframe);
+        if (!isCancelled && liveCandles && liveCandles.length > 0) {
+          setAssetCandles(liveCandles);
+        }
+      } catch (e) {
+        console.warn('Error loading live candles:', e);
+      } finally {
+        if (!isCancelled) setIsChartLoading(false);
+      }
+    }
+    loadCandles();
+    return () => { isCancelled = true; };
+  }, [selectedPair, selectedTimeframe]);
 
   // Order Ticket Form State
   const [orderSide, setOrderSide] = useState<'BUY' | 'SELL'>('BUY');
@@ -147,25 +164,41 @@ export const MarketsTerminal: React.FC<MarketsTerminalProps> = ({
     { time: '08:40:30', price: 24851.10, qty: 75, side: 'BUY', broker: 'Upstox', hash: '0x6b77...04df' }
   ]);
 
-  // Keep live tick updates synchronized for watchlist and active candles
+  // Subscribe to MarketDataEngine quotes for live watchlist updates
   useEffect(() => {
-    setWatchlist(prev => prev.map(item => {
-      if (item.symbol === 'NIFTY 50 Futures') {
-        return { ...item, price: niftyPrice, change: niftyChange };
-      }
-      return item;
-    }));
+    const unsub = marketDataEngine.subscribeQuotes((quotes) => {
+      setWatchlist(prev => prev.map(item => {
+        const liveQuote = marketDataEngine.getCachedQuote(item.symbol);
+        if (liveQuote && liveQuote.price > 0) {
+          return {
+            ...item,
+            price: liveQuote.price,
+            change: liveQuote.changePct,
+            high: Math.max(item.high, liveQuote.high),
+            low: Math.min(item.low, liveQuote.low)
+          };
+        }
+        if (item.symbol === 'NIFTY 50 Futures') {
+          return { ...item, price: niftyPrice, change: niftyChange };
+        }
+        return item;
+      }));
 
-    setAssetCandles(prev => {
-      if (!prev || prev.length === 0) return prev;
-      const activeWatch = watchlist.find(w => w.symbol === selectedPair) || watchlist[0];
-      const last = { ...prev[prev.length - 1] };
-      last.close = activeWatch.price;
-      last.high = Math.max(last.high, activeWatch.price);
-      last.low = Math.min(last.low, activeWatch.price);
-      return [...prev.slice(0, prev.length - 1), last];
+      // Update current candle's live close price
+      setAssetCandles(prev => {
+        if (!prev || prev.length === 0) return prev;
+        const activeWatch = marketDataEngine.getCachedQuote(selectedPair);
+        const currentP = activeWatch?.price || niftyPrice;
+        const last = { ...prev[prev.length - 1] };
+        last.close = currentP;
+        last.high = Math.max(last.high, currentP);
+        last.low = Math.min(last.low, currentP);
+        return [...prev.slice(0, prev.length - 1), last];
+      });
     });
-  }, [niftyPrice, niftyChange, selectedPair]);
+
+    return unsub;
+  }, [selectedPair, niftyPrice, niftyChange]);
 
   // Add random live ticks to Time & Sales
   useEffect(() => {
@@ -227,6 +260,21 @@ export const MarketsTerminal: React.FC<MarketsTerminalProps> = ({
         qty: orderQty,
         price,
         broker: selectedBroker
+      });
+    }
+
+    // Direct routing to Upstox Pro API Gateway if selected
+    if (selectedBroker.includes('Upstox')) {
+      upstoxService.placeOrder({
+        symbol: selectedPair,
+        quantity: orderQty,
+        transaction_type: orderSide,
+        order_type: orderType,
+        price: orderType === 'MARKET' ? 0 : price
+      }).then(res => {
+        console.log('Upstox live order dispatched:', res);
+      }).catch(err => {
+        console.warn('Upstox gateway order dispatch note:', err);
       });
     }
 

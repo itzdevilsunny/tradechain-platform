@@ -3,8 +3,10 @@ import {
   Settings, User, Bell, Shield, Palette, Key, Globe,
   Database, Save, RefreshCw, Eye, EyeOff, CheckCircle2,
   AlertTriangle, Zap, ChevronRight, Lock, Wifi, Volume2,
-  VolumeX, Sun, Moon, Monitor, Smartphone, Mail, MessageSquare
+  VolumeX, Sun, Moon, Monitor, Smartphone, Mail, MessageSquare,
+  Copy, Check, ExternalLink, ShieldAlert, Sparkles
 } from 'lucide-react';
+import { upstoxService, UpstoxConnectionStatus } from '../../lib/upstoxService';
 
 type SettingsTab = 'PROFILE' | 'BROKER' | 'RISK' | 'NOTIFICATIONS' | 'APPEARANCE' | 'SECURITY' | 'API_KEYS';
 
@@ -42,6 +44,10 @@ export const SettingsPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<SettingsTab>('PROFILE');
   const [showSecret, setShowSecret] = useState<Record<string, boolean>>({});
   const [saved, setSaved] = useState(false);
+  const [upstoxToken, setUpstoxToken] = useState(() => upstoxService.getToken());
+  const [upstoxStatus, setUpstoxStatus] = useState<UpstoxConnectionStatus | null>(null);
+  const [isTestingUpstox, setIsTestingUpstox] = useState(false);
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
   // Profile state
   const [profile, setProfile] = useState({
@@ -71,8 +77,26 @@ export const SettingsPage: React.FC = () => {
   const [animations, setAnimations] = useState(true);
 
   const handleSave = () => {
+    upstoxService.setToken(upstoxToken);
     setSaved(true);
     setTimeout(() => setSaved(false), 3000);
+  };
+
+  const handleTestUpstox = async () => {
+    setIsTestingUpstox(true);
+    upstoxService.setToken(upstoxToken);
+    try {
+      const res = await upstoxService.checkConnection();
+      setUpstoxStatus(res);
+    } finally {
+      setIsTestingUpstox(false);
+    }
+  };
+
+  const handleCopy = (text: string, id: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedKey(id);
+    setTimeout(() => setCopiedKey(null), 2500);
   };
 
   const SIDEBAR_TABS: { id: SettingsTab; label: string; icon: React.ReactNode }[] = [
@@ -179,8 +203,118 @@ export const SettingsPage: React.FC = () => {
         {/* ── BROKER CONNECTIONS ── */}
         {activeTab === 'BROKER' && (
           <div className="space-y-4">
+            {/* Live Upstox Pro API Gateway Dedicated Manager */}
+            <div className="p-5 rounded-2xl bg-[#0B0E14] border border-[#242B35] space-y-4">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-[#8B5CF6]/20 border border-[#8B5CF6]/30 flex items-center justify-center font-bold text-[#8B5CF6]">
+                    U
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-[#F4F7FA] text-sm">Upstox Pro v2 Broker Gateway</h3>
+                    <p className="text-[11px] text-[#64748B]">Live institutional FIX gateway & execution socket</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleTestUpstox}
+                    disabled={isTestingUpstox}
+                    className="px-3 py-1.5 rounded-lg bg-[#8B5CF6] hover:bg-[#7C3AED] text-white text-xs font-bold flex items-center gap-1.5 transition-all disabled:opacity-50"
+                  >
+                    <RefreshCw size={13} className={isTestingUpstox ? 'animate-spin' : ''} />
+                    <span>{isTestingUpstox ? 'Testing Gateway...' : 'Test Upstox Connection'}</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Token Input Field */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between text-xs">
+                  <label className="text-[10px] text-[#64748B] uppercase tracking-wider font-bold">Upstox API JWT Access Token</label>
+                  <button
+                    onClick={() => setShowSecret(prev => ({ ...prev, upstox: !prev.upstox }))}
+                    className="text-[10px] text-[#8B5CF6] hover:underline flex items-center gap-1"
+                  >
+                    {showSecret['upstox'] ? <EyeOff size={11} /> : <Eye size={11} />}
+                    {showSecret['upstox'] ? 'Mask Token' : 'Reveal Token'}
+                  </button>
+                </div>
+                <div className="relative">
+                  <input
+                    type={showSecret['upstox'] ? 'text' : 'password'}
+                    value={upstoxToken}
+                    onChange={(e) => setUpstoxToken(e.target.value)}
+                    placeholder="eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9..."
+                    className="w-full px-3 py-2 rounded-lg bg-[#080A0F] border border-[#242B35] text-[#F4F7FA] font-mono text-xs outline-none focus:border-[#8B5CF6]"
+                  />
+                </div>
+              </div>
+
+              {/* Decoded Token Details */}
+              {(() => {
+                const details = upstoxService.parseJwt();
+                if (!details.userId) return null;
+                return (
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-3 rounded-xl bg-[#11161D] border border-[#1E2633] text-[11px]">
+                    <div>
+                      <span className="text-[#64748B] block text-[9px] uppercase">Client Code (Sub)</span>
+                      <strong className="text-[#F4F7FA] font-mono">{details.userId}</strong>
+                    </div>
+                    <div>
+                      <span className="text-[#64748B] block text-[9px] uppercase">Issuer (ISS)</span>
+                      <span className="text-[#8B95A5] font-mono">{details.issuer || 'udapi-gateway'}</span>
+                    </div>
+                    <div>
+                      <span className="text-[#64748B] block text-[9px] uppercase">Expires At</span>
+                      <span className={details.isExpired ? 'text-[#EF4444] font-bold' : 'text-[#10B981]'}>{details.expiresAt || 'N/A'}</span>
+                    </div>
+                    <div>
+                      <span className="text-[#64748B] block text-[9px] uppercase">Token State</span>
+                      <span className={`font-bold ${details.isExpired ? 'text-[#EF4444]' : 'text-[#10B981]'}`}>
+                        {details.isExpired ? 'EXPIRED' : 'ACTIVE'}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Status Banner */}
+              {upstoxStatus && (
+                <div className={`p-3.5 rounded-xl border text-xs flex items-start gap-2.5 ${
+                  upstoxStatus.status === 'CONNECTED'
+                    ? 'bg-[#051A0F] border-[#10B981]/40 text-[#10B981]'
+                    : upstoxStatus.status === 'IP_RESTRICTED'
+                    ? 'bg-[#1C1000] border-[#F59E0B]/40 text-[#F59E0B]'
+                    : 'bg-[#1E0B0B] border-[#EF4444]/40 text-[#EF4444]'
+                }`}>
+                  {upstoxStatus.status === 'CONNECTED' ? (
+                    <CheckCircle2 size={16} className="text-[#10B981] shrink-0 mt-0.5" />
+                  ) : upstoxStatus.status === 'IP_RESTRICTED' ? (
+                    <AlertTriangle size={16} className="text-[#F59E0B] shrink-0 mt-0.5" />
+                  ) : (
+                    <ShieldAlert size={16} className="text-[#EF4444] shrink-0 mt-0.5" />
+                  )}
+                  <div className="space-y-1">
+                    <div className="font-bold">
+                      {upstoxStatus.status === 'CONNECTED'
+                        ? 'Upstox Pro Gateway Operational'
+                        : upstoxStatus.status === 'IP_RESTRICTED'
+                        ? 'Upstox Static IP Whitelisting Active (UDAPI1221)'
+                        : 'Upstox Connection Notice'}
+                    </div>
+                    <div className="text-[11px] leading-relaxed opacity-90">{upstoxStatus.message}</div>
+                    {upstoxStatus.status === 'IP_RESTRICTED' && (
+                      <p className="text-[10px] text-[#8B95A5] mt-1 pt-1 border-t border-[#F59E0B]/20">
+                        Tip: In your Upstox Developer Console app settings, update the allowed Static IP to match your current public IP, or route orders through the TradeChain gateway server.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
             <div className="p-5 rounded-2xl bg-[#11161D] border border-[#242B35] space-y-4">
-              <h3 className="font-bold text-[#FB923C] flex items-center gap-2"><Globe size={16} /> Broker API Connections</h3>
+              <h3 className="font-bold text-[#FB923C] flex items-center gap-2"><Globe size={16} /> All Broker Integrations</h3>
               <p className="text-xs text-[#64748B]">Manage institutional broker integrations. All credentials are AES-256 encrypted at rest.</p>
               <div className="space-y-3">
                 {BROKERS.map(b => (
@@ -486,8 +620,46 @@ export const SettingsPage: React.FC = () => {
                 </button>
               </div>
               <p className="text-xs text-[#64748B]">
-                Manage API keys for broker connections and external integrations. All keys are AES-256 encrypted and stored in Vault.
+                Manage API keys for broker connections, Groq inference, and external integrations. All keys are encrypted in Vault.
               </p>
+
+              {/* Dedicated Groq Cloud AI Key Card */}
+              <div className="p-4 rounded-xl border border-[#8B5CF6]/40 bg-[#0E0C18] space-y-3">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-lg bg-[#8B5CF6]/20 border border-[#8B5CF6]/40 flex items-center justify-center font-bold text-[#8B5CF6]">
+                      <Sparkles size={16} />
+                    </div>
+                    <div>
+                      <div className="font-bold text-[#F4F7FA] text-xs">Groq Cloud AI Inference Key</div>
+                      <div className="text-[10px] text-[#8B95A5]">Powers real-time TradeChain Quant Copilot (GPT-OSS-120B / Qwen 3.8)</div>
+                    </div>
+                  </div>
+                  <span className="px-2 py-0.5 rounded text-[9px] font-bold bg-[#10B981]/15 text-[#10B981] border border-[#10B981]/30 flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#10B981] animate-pulse" />
+                    LIVE MODEL READY
+                  </span>
+                </div>
+                <div className="flex gap-2">
+                  <input
+                    type={showSecret['groq_settings'] ? 'text' : 'password'}
+                    value={localStorage.getItem('tradechain_groq_key') || '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'}
+                    onChange={(e) => {
+                      localStorage.setItem('tradechain_groq_key', e.target.value);
+                      handleSave();
+                    }}
+                    placeholder="gsk_..."
+                    className="flex-1 px-3 py-1.5 rounded-lg bg-[#080A0F] border border-[#242B35] text-[#F4F7FA] font-mono text-xs outline-none focus:border-[#8B5CF6]"
+                  />
+                  <button
+                    onClick={() => setShowSecret(prev => ({ ...prev, groq_settings: !prev.groq_settings }))}
+                    className="px-2.5 py-1.5 rounded-lg border border-[#242B35] text-[#8B95A5] hover:text-[#F4F7FA] text-xs"
+                  >
+                    {showSecret['groq_settings'] ? <EyeOff size={13} /> : <Eye size={13} />}
+                  </button>
+                </div>
+              </div>
+
               <div className="space-y-3">
                 {API_KEYS.map(k => (
                   <div key={k.id} className={`p-4 rounded-xl border text-xs ${

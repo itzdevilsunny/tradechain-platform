@@ -121,7 +121,9 @@ flowchart TD
 | **Styling & Design** | **Tailwind CSS 3.4** + Vanilla CSS | Institutional dark/light themes, tactile 3D linear buttons |
 | **Data Visualization** | **Recharts 2.15** + HTML5 Canvas | Real-time candlestick charts, equity curves, drawdown areas |
 | **Icons & Assets** | **Lucide React** | Consistent institutional icon library |
-| **AI Copilot** | **Groq LLaMA-3.3-70b** + **Gemini 1.5 Flash** | Quantitative trade reasoning and market sentiment |
+| **AI Copilot** | **Groq (GPT-OSS-120B & Qwen 3.8)** + **Gemini** | Live quantitative reasoning with real-time telemetry |
+| **Market Data Feed** | **Yahoo Finance Engine / NSE Ticker Stream** | Genuine live quotes (`^NSEI`, `^NSEBANK`, `^BSESN`) & 60s Sector Heatmap |
+| **Broker Gateways** | **Upstox Pro API v2**, **Zerodha Kite**, **Groww** | Institutional order placement, JWT telemetry, and FIX execution |
 | **Cryptography** | **SHA-256**, **ECDSA secp256k1**, **Merkle Trees** | Immutability, non-repudiation, tamper detection |
 | **Cloud Deployments** | **Vercel** + **Render** | Dual edge & container hosting with automated GitHub CI/CD |
 
@@ -172,16 +174,14 @@ npm install
 ```
 
 ### 3. Environment Variables Configuration
-Copy the template environment file:
-```bash
-cp .env.example .env
-```
-Ensure your `.env` contains your preferred configuration:
+Ensure your `.env` contains your live configurations:
 ```env
 VITE_SUPABASE_URL=https://your-project.supabase.co
 VITE_SUPABASE_ANON_KEY=your-anon-key
 VITE_GROQ_API_KEY=your-groq-api-key
 VITE_GEMINI_API_KEY=your-gemini-api-key
+VITE_UPSTOX_ACCESS_TOKEN=your-upstox-jwt-token
+VITE_RAPIDAPI_KEY=your-rapidapi-key
 ```
 
 ### 4. Start Local Development Server
