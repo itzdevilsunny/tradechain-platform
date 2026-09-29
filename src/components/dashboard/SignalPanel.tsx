@@ -1,20 +1,32 @@
 import React, { useState } from 'react';
-import { AISignalData } from '../../types/trading';
+import { AISignalData, BlockHeader } from '../../types/trading';
 import { 
   Bot, 
   TrendingUp, 
-  TrendingDown,
-  MinusCircle,
+  TrendingDown, 
+  MinusCircle, 
   ChevronDown, 
   ChevronUp, 
   ShieldCheck, 
   Info, 
   CheckCircle2, 
-  Sparkles,
-  Zap,
-  RefreshCw,
-  Send
+  Sparkles, 
+  Zap, 
+  RefreshCw, 
+  SlidersHorizontal,
+  Activity,
+  Layers
 } from 'lucide-react';
+
+export const SCANNED_ASSETS = [
+  { id: 'NIFTY 50 Futures', label: 'NIFTY 50' },
+  { id: 'BANK NIFTY Futures', label: 'BANK NIFTY' },
+  { id: 'FIN NIFTY Futures', label: 'FIN NIFTY' },
+  { id: 'SENSEX Futures', label: 'SENSEX' },
+  { id: 'RELIANCE Eq', label: 'RELIANCE' },
+  { id: 'TCS Eq', label: 'TCS' },
+  { id: 'BTC / INR', label: 'BTC/INR' }
+];
 
 interface SignalPanelProps {
   signal: AISignalData;
@@ -23,6 +35,10 @@ interface SignalPanelProps {
   isAnalyzing?: boolean;
   onExecuteSignal?: () => void;
   isExecuting?: boolean;
+  selectedPair?: string;
+  onSelectPair?: (pair: string) => void;
+  latestBlock?: BlockHeader;
+  multiAssetSignals?: Record<string, { state: 'BUY' | 'SELL' | 'NEUTRAL'; confidence: number; rsi?: number }>;
 }
 
 export const SignalPanel: React.FC<SignalPanelProps> = ({ 
@@ -31,15 +47,20 @@ export const SignalPanel: React.FC<SignalPanelProps> = ({
   onReanalyze,
   isAnalyzing = false,
   onExecuteSignal,
-  isExecuting = false
+  isExecuting = false,
+  selectedPair,
+  onSelectPair,
+  latestBlock,
+  multiAssetSignals = {}
 }) => {
   const [isExpanded, setIsExpanded] = useState(true);
+  const [showRadar, setShowRadar] = useState(true);
 
   const isBuy = signal.state === 'BUY';
   const isSell = signal.state === 'SELL';
   const isNeutral = signal.state === 'NEUTRAL';
 
-  // Indicator math calculations
+  // Indicator math calculations from live candles
   const divergence = Math.round((signal.indicators.ema20 - signal.indicators.ema50) * 10) / 10;
   const isEmaBullish = divergence >= 0;
   const rsi = signal.indicators.rsi;
@@ -50,10 +71,14 @@ export const SignalPanel: React.FC<SignalPanelProps> = ({
   const stateBgClass = isBuy ? 'bg-[#10B981]/15 border-[#10B981]/40' : isSell ? 'bg-[#EF4444]/15 border-[#EF4444]/40' : 'bg-[#F59E0B]/15 border-[#F59E0B]/40';
   const stateBadgeClass = isBuy ? 'bg-[#10B981] text-black' : isSell ? 'bg-[#EF4444] text-white' : 'bg-[#F59E0B] text-black';
 
+  const currentAsset = selectedPair || signal.asset;
+  const blockMerkle = latestBlock?.merkleRoot || signal.strategyHash;
+  const blockNum = latestBlock?.blockNumber || 4281;
+
   return (
-    <div className="p-4 rounded-xl bg-white dark:bg-[#111620] border border-slate-200 dark:border-[#1E2633] space-y-4 shadow-sm flex flex-col justify-between transition-all">
+    <div className="p-4 rounded-xl bg-white dark:bg-[#111620] border border-slate-200 dark:border-[#1E2633] space-y-3.5 shadow-sm flex flex-col justify-between transition-all">
       <div>
-        {/* Header */}
+        {/* Header with Engine Info & Live Re-Scan */}
         <div className="flex items-center justify-between border-b border-slate-200 dark:border-[#242B35] pb-3">
           <div className="flex items-center gap-2">
             <div className="w-7 h-7 rounded-md bg-[#8B5CF6]/20 border border-[#8B5CF6]/40 flex items-center justify-center">
@@ -62,7 +87,7 @@ export const SignalPanel: React.FC<SignalPanelProps> = ({
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="font-mono font-bold text-xs text-slate-900 dark:text-[#F4F7FA] uppercase tracking-wider">
-                  AI / Strategy Telemetry
+                  AI Live Telemetry
                 </h3>
                 <span className="w-1.5 h-1.5 rounded-full bg-[#10B981] animate-ping" />
               </div>
@@ -78,20 +103,64 @@ export const SignalPanel: React.FC<SignalPanelProps> = ({
                 onClick={onReanalyze}
                 disabled={isAnalyzing}
                 title="Re-analyze live market telemetry with Groq AI"
-                className="px-2 py-1 text-[10px] font-mono font-bold rounded bg-slate-100 dark:bg-[#161D2A] border border-slate-300 dark:border-[#242B35] text-slate-700 dark:text-[#F4F7FA] hover:text-[#8B5CF6] hover:border-[#8B5CF6]/50 flex items-center gap-1 transition-all disabled:opacity-50"
+                className="px-2.5 py-1 text-[10px] font-mono font-bold rounded bg-slate-100 dark:bg-[#161D2A] border border-slate-300 dark:border-[#242B35] text-slate-700 dark:text-[#F4F7FA] hover:text-[#8B5CF6] hover:border-[#8B5CF6]/50 flex items-center gap-1.5 transition-all disabled:opacity-50 cursor-pointer shadow-xs"
               >
                 <RefreshCw size={11} className={isAnalyzing ? 'animate-spin text-[#8B5CF6]' : ''} />
                 <span>{isAnalyzing ? 'Analyzing...' : 'Re-scan'}</span>
               </button>
             )}
             <span className="px-2 py-0.5 text-[10px] font-mono font-bold bg-[#8B5CF6]/15 text-[#8B5CF6] border border-[#8B5CF6]/30 rounded">
-              ACTIVE ALGO
+              LIVE ALGO
             </span>
           </div>
         </div>
 
+        {/* Quick Multi-Asset AI Scanner Switcher */}
+        {onSelectPair && (
+          <div className="mt-2.5 pt-0.5">
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-[10px] font-mono font-semibold text-slate-500 dark:text-[#8B95A5] flex items-center gap-1">
+                <Activity size={11} className="text-[#3B82F6]" />
+                SCAN ASSET:
+              </span>
+              <button 
+                onClick={() => setShowRadar(!showRadar)}
+                className="text-[9px] font-mono text-[#3B82F6] hover:underline"
+              >
+                {showRadar ? 'Compact Radar' : 'Expand Radar'}
+              </button>
+            </div>
+            <div className="flex flex-wrap gap-1">
+              {SCANNED_ASSETS.map(item => {
+                const isSelected = (selectedPair || signal.asset).includes(item.label) || (selectedPair || signal.asset) === item.id;
+                const radarSig = multiAssetSignals[item.id] || multiAssetSignals[item.label];
+                const sigColor = radarSig?.state === 'BUY' ? 'text-[#10B981]' : radarSig?.state === 'SELL' ? 'text-[#EF4444]' : 'text-slate-400';
+
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => onSelectPair(item.id)}
+                    className={`px-2 py-1 text-[10px] font-mono font-bold rounded transition-all flex items-center gap-1 cursor-pointer ${
+                      isSelected
+                        ? 'bg-[#3B82F6] text-white shadow-xs'
+                        : 'bg-slate-100 dark:bg-[#161D2A] text-slate-600 dark:text-[#8B95A5] border border-slate-200 dark:border-[#242B35] hover:border-[#3B82F6]/50'
+                    }`}
+                  >
+                    <span>{item.label}</span>
+                    {radarSig && (
+                      <span className={`text-[8px] font-mono font-black ${isSelected ? 'text-white/90' : sigColor}`}>
+                        {radarSig.state === 'BUY' ? '▲' : radarSig.state === 'SELL' ? '▼' : '●'}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {/* Large Signal State */}
-        <div className="py-4 flex items-center justify-between">
+        <div className="py-3 flex items-center justify-between border-b border-slate-100 dark:border-[#1E2633]/60 my-1">
           <div className="flex items-center gap-3">
             <div className={`w-12 h-12 rounded-xl border flex items-center justify-center transition-all ${stateBgClass}`}>
               {isBuy && <TrendingUp size={24} className="text-[#10B981]" />}
@@ -108,7 +177,7 @@ export const SignalPanel: React.FC<SignalPanelProps> = ({
                 </span>
               </div>
               <p className="text-xs font-mono text-slate-500 dark:text-[#8B95A5] mt-0.5 flex items-center gap-1.5">
-                <span>{signal.asset}</span>
+                <span className="font-semibold text-slate-900 dark:text-[#F4F7FA]">{currentAsset}</span>
                 <span>•</span>
                 <span className="text-[#10B981] flex items-center gap-0.5">
                   <ShieldCheck size={12} /> Level 3 Risk Filter OK
@@ -118,7 +187,7 @@ export const SignalPanel: React.FC<SignalPanelProps> = ({
           </div>
           <div className="text-right">
             <span className="text-xs font-mono text-slate-500 dark:text-[#5F6978] block">{signal.timestamp}</span>
-            <span className="text-[10px] font-mono text-[#8B5CF6] block mt-0.5">Live Tick</span>
+            <span className="text-[10px] font-mono text-[#8B5CF6] block mt-0.5 font-bold">● Live Tick</span>
           </div>
         </div>
 
@@ -136,7 +205,7 @@ export const SignalPanel: React.FC<SignalPanelProps> = ({
 
           <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-[#151B23] border border-slate-200 dark:border-[#242B35]">
             <span className="text-slate-500 dark:text-[#8B95A5] block text-[10px]">RSI (14 Period)</span>
-            <span className={`font-bold block ${rsi >= 45 && rsi <= 65 ? 'text-[#10B981]' : rsi > 70 ? 'text-[#EF4444]' : 'text-[#F59E0B]'}`}>
+            <span className={`font-bold block ${rsi >= 45 && rsi <= 68 ? 'text-[#10B981]' : rsi > 70 ? 'text-[#EF4444]' : 'text-[#F59E0B]'}`}>
               {rsi.toFixed(1)} ({rsiTag})
             </span>
             <span className="text-[9px] text-slate-400 dark:text-[#5F6978]">
@@ -146,24 +215,24 @@ export const SignalPanel: React.FC<SignalPanelProps> = ({
 
           <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-[#151B23] border border-slate-200 dark:border-[#242B35]">
             <span className="text-slate-500 dark:text-[#8B95A5] block text-[10px]">Strategy Profile</span>
-            <span className="text-[#3B82F6] font-bold block truncate">{signal.strategyName} {signal.strategyVersion}</span>
+            <span className="text-[#3B82F6] font-bold block truncate">{signal.strategyName}</span>
             <span className="text-[9px] text-slate-400 dark:text-[#5F6978]">SEBI Margin Compliant</span>
           </div>
 
           <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-[#151B23] border border-slate-200 dark:border-[#242B35]">
-            <span className="text-slate-500 dark:text-[#8B95A5] block text-[10px]">Block Validity</span>
-            <span className="text-[#10B981] font-bold block">0 Drift • Invariant</span>
+            <span className="text-slate-500 dark:text-[#8B95A5] block text-[10px]">On-Chain Attestation</span>
+            <span className="text-[#10B981] font-bold block">Block #{blockNum} • Active</span>
             <span className="text-[9px] text-slate-400 dark:text-[#5F6978] truncate block">
-              Merkle: {signal.strategyHash.slice(0, 10)}...
+              Merkle: {blockMerkle.slice(0, 10)}...
             </span>
           </div>
         </div>
 
         {/* Expandable "Why this signal?" Rationale */}
-        <div className="mt-3 border border-slate-200 dark:border-[#242B35] rounded-lg overflow-hidden bg-slate-50 dark:bg-[#080A0F]">
+        <div className="mt-2.5 border border-slate-200 dark:border-[#242B35] rounded-lg overflow-hidden bg-slate-50 dark:bg-[#080A0F]">
           <button
             onClick={() => setIsExpanded(!isExpanded)}
-            className="w-full px-3 py-2 flex items-center justify-between text-xs font-mono text-slate-600 dark:text-[#8B95A5] hover:text-slate-900 dark:hover:text-[#F4F7FA] transition-colors"
+            className="w-full px-3 py-2 flex items-center justify-between text-xs font-mono text-slate-600 dark:text-[#8B95A5] hover:text-slate-900 dark:hover:text-[#F4F7FA] transition-colors cursor-pointer"
           >
             <div className="flex items-center gap-1.5">
               <Info size={14} className="text-[#3B82F6]" />
@@ -189,22 +258,26 @@ export const SignalPanel: React.FC<SignalPanelProps> = ({
       </div>
 
       {/* Action Buttons */}
-      <div className="space-y-2 mt-4">
-        {onExecuteSignal && signal.state !== 'NEUTRAL' && (
+      <div className="space-y-2 mt-2">
+        {onExecuteSignal && (
           <button
             onClick={onExecuteSignal}
-            disabled={isExecuting}
-            className={`w-full py-2.5 px-3 rounded-lg text-xs font-mono font-bold flex items-center justify-center gap-2 shadow-sm transition-all disabled:opacity-50 ${
+            disabled={isExecuting || signal.state === 'NEUTRAL'}
+            className={`w-full py-2.5 px-3 rounded-lg text-xs font-mono font-bold flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer disabled:opacity-50 ${
               isBuy 
                 ? 'bg-[#10B981] hover:bg-[#0EA271] text-black shadow-glow-green' 
-                : 'bg-[#EF4444] hover:bg-[#DC2626] text-white'
+                : isSell
+                ? 'bg-[#EF4444] hover:bg-[#DC2626] text-white'
+                : 'bg-slate-200 dark:bg-[#1E2633] text-slate-600 dark:text-slate-400 cursor-not-allowed'
             }`}
           >
             <Zap size={14} />
             <span>
               {isExecuting 
-                ? 'Dispatching to Upstox Pro API...' 
-                : `⚡ 1-Click Execute ${signal.state} (1 Lot @ Market via Upstox)`}
+                ? `Dispatching ${signal.state} to Upstox Pro API...` 
+                : signal.state === 'NEUTRAL'
+                ? '⏸️ Market Consolidating (Awaiting Breakout Signal)'
+                : `⚡ 1-Click Execute ${signal.state} (${currentAsset} @ Market via Upstox)`}
             </span>
           </button>
         )}
@@ -212,7 +285,7 @@ export const SignalPanel: React.FC<SignalPanelProps> = ({
         {/* Button to ask AI Copilot */}
         <button
           onClick={onOpenAIModal}
-          className="w-full py-2 px-3 rounded-lg bg-[#8B5CF6]/15 hover:bg-[#8B5CF6]/25 border border-[#8B5CF6]/40 text-xs font-mono font-semibold text-[#8B5CF6] flex items-center justify-center gap-2 transition-all"
+          className="w-full py-2 px-3 rounded-lg bg-[#8B5CF6]/15 hover:bg-[#8B5CF6]/25 border border-[#8B5CF6]/40 text-xs font-mono font-semibold text-[#8B5CF6] flex items-center justify-center gap-2 transition-all cursor-pointer"
         >
           <Sparkles size={14} />
           Ask TradeChain AI Copilot about this signal

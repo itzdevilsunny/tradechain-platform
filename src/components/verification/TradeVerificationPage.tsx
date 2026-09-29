@@ -171,8 +171,10 @@ export const TradeVerificationPage: React.FC<TradeVerificationPageProps> = ({
       setTamperAttackRunning(false);
       setTamperSimulated(true);
 
-      const fakeMutatedHash = `0x${Math.random().toString(16).slice(2, 14)}${Math.random().toString(16).slice(2, 14)}e4f7`;
-      const fakeMutatedRoot = `0x${Math.random().toString(16).slice(2, 14)}${Math.random().toString(16).slice(2, 14)}98ac`;
+      // Simulate attacker mutating trade data — use SHA256 of modified payload
+      const mutatedPayload = `${selectedTrade.id}:TAMPERED:${selectedTrade.asset}:${selectedTrade.price}:MODIFIED_QTY`;
+      const fakeMutatedHash = generateSHA256(mutatedPayload);
+      const fakeMutatedRoot = generateSHA256(`merkle:tampered:${fakeMutatedHash}`);
 
       setTamperResult({
         originalHash: selectedTrade.txHash,
@@ -217,8 +219,11 @@ export const TradeVerificationPage: React.FC<TradeVerificationPageProps> = ({
     setScanProgress(0);
     setScanResult(null);
     let p = 0;
+    let tick = 0;
     const interval = setInterval(() => {
-      p = Math.min(100, p + Math.floor(5 + Math.random() * 8));
+      tick++;
+      // Deterministic progress: faster start, slower near end (realistic)
+      p = Math.min(100, p + (p < 60 ? 8 : p < 85 ? 5 : 2));
       setScanProgress(p);
       if (p >= 100) {
         clearInterval(interval);

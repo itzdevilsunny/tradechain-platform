@@ -159,6 +159,7 @@ export const TradingBotControl: React.FC<TradingBotControlProps> = ({
   useEffect(() => {
     if (botMode !== 'RUNNING') return;
 
+    let stratIdx = 0;
     let isScanning = false;
     const interval = setInterval(async () => {
       if (isScanning) return;
@@ -168,12 +169,22 @@ export const TradingBotControl: React.FC<TradingBotControlProps> = ({
       const timeStr = now.toLocaleTimeString('en-IN', { hour12: false });
 
       try {
-        // Query genuine live AI quant model for NIFTY 50 with live candlesticks
-        const candles = await marketDataEngine.getCandles('NIFTY 50', '5m');
+        const runningStrats = strategies.filter(s => s.status === 'RUNNING');
+        const activeStrat = runningStrats.length > 0 ? runningStrats[stratIdx % runningStrats.length] : strategies[0];
+        stratIdx++;
+
+        const targetAsset = activeStrat.asset;
+        const quote = await marketDataEngine.getQuote(targetAsset);
+        const assetPrice = quote?.price && quote.price > 0 ? quote.price : niftyPrice;
+        const assetChange = quote?.changePct !== undefined ? quote.changePct : niftyChange;
+
+        // Query genuine live AI quant model for active strategy asset with live candlesticks
+        const validTimeframe = (['1m', '5m', '15m', '1h', '1d'].includes(activeStrat.timeframe) ? activeStrat.timeframe : '5m') as '1m' | '5m' | '15m' | '1h' | '1d';
+        const candles = await marketDataEngine.getCandles(targetAsset, validTimeframe);
         const signal = await generateLiveAIMarketSignal({
-          asset: 'NIFTY 50',
-          price: niftyPrice,
-          changePct: niftyChange,
+          asset: targetAsset,
+          price: assetPrice,
+          changePct: assetChange,
           candles
         });
         const tEnd = performance.now();
@@ -182,7 +193,7 @@ export const TradingBotControl: React.FC<TradingBotControlProps> = ({
         if (signal.state !== 'NEUTRAL') {
           const side = signal.state === 'BUY' ? 'BUY' : 'SELL';
           const conf = signal.confidence;
-          const msg = `AI Signal: ${side} NIFTY 50 @ ₹${niftyPrice.toFixed(2)} (${conf}% Conf). RSI: ${signal.indicators.rsi.toFixed(1)}, EMA20: ₹${signal.indicators.ema20.toFixed(1)}, EMA50: ₹${signal.indicators.ema50.toFixed(1)}.`;
+          const msg = `AI Signal: ${side} ${targetAsset} @ ₹${assetPrice.toFixed(2)} (${conf}% Conf). RSI: ${signal.indicators.rsi.toFixed(1)}, EMA20: ₹${signal.indicators.ema20.toFixed(1)}, EMA50: ₹${signal.indicators.ema50.toFixed(1)}.`;
           
           setConsoleLogs(prev => [
             { id: Math.random().toString(), timestamp: timeStr, type: 'SIGNAL', message: msg },
@@ -191,14 +202,18 @@ export const TradingBotControl: React.FC<TradingBotControlProps> = ({
 
           // Real auto-execution routing to Upstox Pro / Broker
           if (autoExecute && conf >= 75) {
-            const qty = 25;
+            const isBank = targetAsset.includes('BANK');
+            const isCrypto = targetAsset.includes('BTC');
+            const isEq = targetAsset.includes('RELIANCE') || targetAsset.includes('TCS');
+            const qty = isBank ? 15 : isCrypto ? 1 : isEq ? 10 : 25;
+
             onExecuteOrder({
-              symbol: 'NIFTY 50 Futures',
+              symbol: targetAsset,
               side: side,
               type: 'MARKET',
               qty,
-              price: niftyPrice,
-              broker: 'Upstox FIX'
+              price: assetPrice,
+              broker: activeStrat.broker || 'Upstox FIX'
             });
 
             setConsoleLogs(prev => [
@@ -206,8 +221,8 @@ export const TradingBotControl: React.FC<TradingBotControlProps> = ({
                 id: Math.random().toString(),
                 timestamp: timeStr,
                 type: 'EXECUTION',
-                message: `Automated Execution: ${side} ${qty} Qty NIFTY 50 @ ₹${niftyPrice.toFixed(2)} sent via Upstox FIX.`,
-                hash: `0x${Math.random().toString(16).substring(2, 10)}`
+                message: `Automated Execution: ${side} ${qty} Qty ${targetAsset} @ ₹${assetPrice.toFixed(2)} sent via ${activeStrat.broker}.`,
+                hash: signal.strategyHash ? `0x${signal.strategyHash.substring(0, 10)}` : `0x${Math.random().toString(16).substring(2, 10)}`
               },
               ...prev.slice(0, 29)
             ]);
@@ -218,7 +233,7 @@ export const TradingBotControl: React.FC<TradingBotControlProps> = ({
               id: Math.random().toString(),
               timestamp: timeStr,
               type: 'INFO',
-              message: `AI Market Scan: NEUTRAL (RSI: ${signal.indicators.rsi.toFixed(1)}). No execution threshold triggered. Positions: ${positions.length}.`
+              message: `AI Market Scan (${targetAsset}): NEUTRAL (RSI: ${signal.indicators.rsi.toFixed(1)}). No execution threshold triggered. Positions: ${positions.length}.`
             },
             ...prev.slice(0, 29)
           ]);

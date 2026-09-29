@@ -77,10 +77,12 @@ export function App() {
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
-  // Live Market Data simulation state (NIFTY 50 Futures default)
+  // Live Market Data state (Benchmark NIFTY 50 and active selected trading pair)
   const [niftyPrice, setNiftyPrice] = useState(24850.40);
   const [niftyChange, setNiftyChange] = useState(0.64);
   const [selectedPair, setSelectedPair] = useState('NIFTY 50 Futures');
+  const [pairPrice, setPairPrice] = useState(24850.40);
+  const [pairChange, setPairChange] = useState(0.64);
   const [candles, setCandles] = useState<CandlestickData[]>([]);
   const [positions, setPositions] = useState<ActivePosition[]>(() => {
     try {
@@ -178,13 +180,25 @@ export function App() {
     return () => marketDataEngine.stopStreaming();
   }, []);
 
-  // Subscribe to live market quotes to keep NIFTY / benchmark prices genuinely updated
+  // Subscribe to live market quotes to keep NIFTY and selected pair genuinely updated
   useEffect(() => {
-    const unsub = marketDataEngine.subscribeQuotes(() => {
-      const q = marketDataEngine.getCachedQuote(selectedPair);
-      if (q && q.price > 0) {
-        setNiftyPrice(q.price);
-        setNiftyChange(q.changePct);
+    const unsub = marketDataEngine.subscribeQuotes((quotes) => {
+      // 1. Always keep Benchmark NIFTY 50 updated
+      const nq = quotes.get('^NSEI') || quotes.get('NIFTY 50');
+      if (nq && nq.price > 0) {
+        setNiftyPrice(nq.price);
+        setNiftyChange(nq.changePct);
+      }
+
+      // 2. Keep active selected pair updated
+      const pq = marketDataEngine.getCachedQuote(selectedPair);
+      if (pq && pq.price > 0) {
+        setPairPrice(pq.price);
+        setPairChange(pq.changePct);
+        if (selectedPair.includes('NIFTY 50')) {
+          setNiftyPrice(pq.price);
+          setNiftyChange(pq.changePct);
+        }
       }
     });
     return unsub;
@@ -197,8 +211,12 @@ export function App() {
       try {
         const quote = await marketDataEngine.getQuote(selectedPair);
         if (!isCancelled && quote && quote.price > 0) {
-          setNiftyPrice(quote.price);
-          setNiftyChange(quote.changePct);
+          setPairPrice(quote.price);
+          setPairChange(quote.changePct);
+          if (selectedPair.includes('NIFTY 50')) {
+            setNiftyPrice(quote.price);
+            setNiftyChange(quote.changePct);
+          }
         }
 
         const liveCandles = await marketDataEngine.getCandles(selectedPair, '15m');
@@ -477,8 +495,8 @@ export function App() {
         return (
           <MarketsTerminal
             candles={candles}
-            niftyPrice={niftyPrice}
-            niftyChange={niftyChange}
+            niftyPrice={pairPrice || niftyPrice}
+            niftyChange={pairChange !== undefined ? pairChange : niftyChange}
             selectedPair={selectedPair}
             onSelectPair={setSelectedPair}
             onExecuteOrder={handleExecuteOrder}
@@ -512,6 +530,8 @@ export function App() {
             onSelectPair={setSelectedPair}
             niftyPrice={niftyPrice}
             niftyChange={niftyChange}
+            pairPrice={pairPrice}
+            pairChange={pairChange}
             positions={positions}
             trades={trades}
             blocks={blocks}

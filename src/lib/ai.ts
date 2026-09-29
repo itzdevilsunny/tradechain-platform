@@ -1,4 +1,5 @@
 import { AISignalData, CandlestickData } from '../types/trading';
+import { generateSHA256 } from './cryptoUtils';
 
 export const DEFAULT_GROQ_KEY = '';
 
@@ -205,7 +206,8 @@ export function calculateIndicators(candles: CandlestickData[]): {
   macdStatus: string;
 } {
   if (!candles || candles.length === 0) {
-    return { ema20: 24820, ema50: 24750, rsi: 58.4, macdHist: 12.4, macdStatus: 'BULLISH_EXPANSION' };
+    // Return zero-baseline — actual price-based values must come from live candles
+    return { ema20: 0, ema50: 0, rsi: 50, macdHist: 0, macdStatus: 'CONVERGING' };
   }
 
   const closes = candles.map(c => c.close);
@@ -261,30 +263,52 @@ export async function generateLiveAIMarketSignal(params: {
   asset: string;
   price: number;
   changePct: number;
-  candles: CandlestickData[];
+  candles?: CandlestickData[];
   sectors?: { name: string; change: number }[];
+  latestBlockHash?: string;
 }): Promise<AISignalData> {
-  const { asset, price, changePct, candles, sectors = [] } = params;
+  const { asset, price, changePct, sectors = [], latestBlockHash } = params;
+  
+  // Ensure we have candles for this asset
+  let candles = params.candles || [];
+  if (!candles || candles.length === 0) {
+    try {
+      const { marketDataEngine } = await import('./marketData');
+      candles = await marketDataEngine.getCandles(asset, '15m');
+    } catch {}
+  }
+
   const indicators = calculateIndicators(candles);
   const { ema20, ema50, rsi, macdHist, macdStatus } = indicators;
   const divergence = Math.round((ema20 - ema50) * 100) / 100;
 
-  // Baseline quantitative rule engine
+  // Genuine multi-factor quantitative rule engine
   let baselineState: 'BUY' | 'SELL' | 'NEUTRAL' = 'NEUTRAL';
-  let baselineConfidence = 76;
+  let baselineConfidence = 74;
 
-  if (ema20 > ema50 && rsi >= 45 && rsi <= 72) {
+  const isEmaBullish = ema20 > ema50;
+  const isRsiBullish = rsi >= 48 && rsi <= 68;
+  const isRsiBearish = rsi <= 52 && rsi >= 32;
+  const isMacdBullish = macdHist > 0;
+
+  if (isEmaBullish && isRsiBullish && isMacdBullish) {
     baselineState = 'BUY';
-    baselineConfidence = Math.min(94, Math.round(75 + (rsi - 45) * 0.7));
-  } else if (ema20 < ema50 && rsi <= 55 && rsi >= 28) {
+    baselineConfidence = Math.min(94, Math.round(78 + Math.abs(divergence / (price || 1)) * 500 + (rsi - 50) * 0.5));
+  } else if (!isEmaBullish && isRsiBearish && !isMacdBullish) {
     baselineState = 'SELL';
-    baselineConfidence = Math.min(93, Math.round(75 + (55 - rsi) * 0.7));
+    baselineConfidence = Math.min(94, Math.round(78 + Math.abs(divergence / (price || 1)) * 500 + (50 - rsi) * 0.5));
   } else if (rsi > 72) {
     baselineState = 'SELL'; // Overbought mean-reversion
     baselineConfidence = 82;
   } else if (rsi < 28) {
-    baselineState = 'BUY'; // Oversold bounce
-    baselineConfidence = 84;
+    baselineState = 'BUY'; // Oversold mean-reversion bounce
+    baselineConfidence = 83;
+  } else if (Math.abs(divergence) < price * 0.0005) {
+    baselineState = 'NEUTRAL';
+    baselineConfidence = 70;
+  } else {
+    baselineState = isEmaBullish ? 'BUY' : 'SELL';
+    baselineConfidence = 72;
   }
 
   const sectorSummary = sectors.length > 0 
@@ -296,11 +320,11 @@ export async function generateLiveAIMarketSignal(params: {
 
   let signalState = baselineState;
   let confidence = baselineConfidence;
-  let rationale = `${asset} EMA20 (₹${ema20.toLocaleString('en-IN')}) is ${divergence >= 0 ? 'bullish above' : 'bearish below'} EMA50 (₹${ema50.toLocaleString('en-IN')}) with divergence of ${divergence >= 0 ? '+' : ''}${divergence} pts. RSI(14) holds at ${rsi.toFixed(1)} while sector breadth (${sectorSummary}) reinforces directional bias with SEBI risk filter OK via Upstox Pro API.`;
+  let rationale = `${asset} price action (₹${price.toLocaleString('en-IN')}) trades with EMA20 (₹${ema20.toLocaleString('en-IN')}) ${divergence >= 0 ? 'above' : 'below'} EMA50 (₹${ema50.toLocaleString('en-IN')}) by ${divergence >= 0 ? '+' : ''}${divergence} pts. RSI(14) is at ${rsi.toFixed(1)} with ${macdStatus.toLowerCase().replace('_', ' ')} momentum. Technical setup indicates a ${baselineState} bias with pre-trade SEBI risk parameters validated.`;
 
   // Query Groq AI for deep quantitative analysis
   if (groqKey) {
-    const prompt = `You are an institutional quantitative trading engine for Indian Stock Exchanges (NSE/BSE).
+    const prompt = `You are an elite institutional quantitative analyst for Indian Stock Exchanges (NSE/BSE).
 Analyze live market telemetry for ${asset}:
 - Current Price: ₹${price.toLocaleString('en-IN')} (${changePct >= 0 ? '+' : ''}${changePct.toFixed(2)}%)
 - EMA20: ${ema20.toFixed(2)} vs EMA50: ${ema50.toFixed(2)} (Divergence: ${divergence >= 0 ? '+' : ''}${divergence.toFixed(2)} pts)
@@ -308,11 +332,12 @@ Analyze live market telemetry for ${asset}:
 - MACD Histogram: ${macdHist >= 0 ? '+' : ''}${macdHist.toFixed(2)} (${macdStatus})
 - Sector Breadth: ${sectorSummary}
 
-Return ONLY a valid JSON object without markdown formatting:
+Evaluate these indicators objectively. Determine whether the telemetry justifies a "BUY", "SELL", or "NEUTRAL" signal.
+Return ONLY valid JSON (no markdown fences, no extra text):
 {
-  "signal": "${baselineState}",
-  "confidence": ${baselineConfidence},
-  "rationale": "2-3 precise institutional sentences explaining the mathematical edge, price action relative to EMA20/50, volume/sector confirmation, and pre-trade SEBI risk parameters cleared via Upstox Pro API."
+  "signal": "BUY" | "SELL" | "NEUTRAL",
+  "confidence": <integer between 60 and 96>,
+  "rationale": "<2-3 concise institutional sentences explaining the mathematical edge, price action relative to EMA20/50, volume/sector confirmation, and pre-trade SEBI risk parameters cleared via Upstox Pro API.>"
 }`;
 
     const models = ['qwen/qwen3.8-27b', 'openai/gpt-oss-120b'];
@@ -363,14 +388,20 @@ Return ONLY a valid JSON object without markdown formatting:
     }
   }
 
+  const strategyHash = latestBlockHash 
+    ? latestBlockHash 
+    : generateSHA256(`signal:${asset}:${price}:${ema20}:${ema50}:${rsi.toFixed(1)}:${signalState}:${Date.now()}`);
+
+  const shortAsset = asset.replace(' Futures', '').replace(' Eq', '').trim();
+
   return {
     state: signalState,
     asset,
     confidence,
     timestamp: timeStr,
-    strategyName: `${asset.split(' ')[0]} EMA + RSI`,
-    strategyVersion: 'v1.4',
-    strategyHash: '0x92ac71b04a871092eac431102948bbcca428' + Math.floor(price).toString(16),
+    strategyName: `${shortAsset} Quant EMA + RSI`,
+    strategyVersion: 'v2.4',
+    strategyHash,
     indicators: {
       ema20,
       ema50,

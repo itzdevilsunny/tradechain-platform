@@ -1,4 +1,5 @@
 import { BacktestResult } from '../types/trading';
+import { generateSHA256 } from './cryptoUtils';
 
 export interface BacktestInput {
   asset: string;
@@ -165,8 +166,9 @@ export function runQuantBacktest(input: BacktestInput): ExtendedBacktestResult {
     const entryPrice = Math.round((basePrice * (1 + priceDrift)) * 100) / 100;
     
     const pnlPct = isWin 
-      ? Math.round((takeProfitPct * (0.85 + Math.random() * 0.3)) * 100) / 100
-      : -Math.round((stopLossPct * (0.9 + Math.random() * 0.2)) * 100) / 100;
+      // Deterministic variation using index + price modulo — no Math.random
+      ? Math.round((takeProfitPct * (0.85 + (idx % 4) * 0.075)) * 100) / 100
+      : -Math.round((stopLossPct * (0.9 + (idx % 3) * 0.05)) * 100) / 100;
 
     const priceDiff = entryPrice * (pnlPct / 100);
     const exitPrice = Math.round((side === 'BUY' ? entryPrice + priceDiff : entryPrice - priceDiff) * 100) / 100;
@@ -190,7 +192,7 @@ export function runQuantBacktest(input: BacktestInput): ExtendedBacktestResult {
       status: isWin ? 'WIN' : 'LOSS',
       fee,
       blockHeight: 48200 + idx,
-      txHash: `0x${Math.random().toString(16).slice(2, 10)}${Math.random().toString(16).slice(2, 10)}`
+      txHash: generateSHA256(`bt:${assetCategory}-${1000 + idx}:${entryPrice}:${side}:${idx}`)
     };
   });
 

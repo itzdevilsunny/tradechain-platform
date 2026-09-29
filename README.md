@@ -1,7 +1,5 @@
 # TradeChain — Institutional Algorithmic Trading & Cryptographic Audit Platform ⚡🛡️
 
-<div align="center">
-
 [![Live Production Vercel](https://img.shields.io/badge/Deployment-tradechain--platform.vercel.app-10B981?style=for-the-badge&logo=vercel&logoColor=white)](https://tradechain-platform.vercel.app/)
 [![Live Production Render](https://img.shields.io/badge/Render-tradechain--platform.onrender.com-46E3B7?style=for-the-badge&logo=render&logoColor=black)](https://tradechain-platform.onrender.com)
 [![Supabase Database](https://img.shields.io/badge/Database-Supabase%20PostgreSQL-3ECF8E?style=for-the-badge&logo=supabase&logoColor=white)](https://supabase.com)
@@ -11,19 +9,15 @@
 [![TailwindCSS](https://img.shields.io/badge/TailwindCSS-3.4-38B2AC?style=for-the-badge&logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-F59E0B?style=for-the-badge)](LICENSE)
 
-<p align="center">
-  <strong>An institutional-grade algorithmic trading workstation, backtesting sandbox, and Proof-of-Authority (PoA) blockchain verification engine localized for the Indian Equity / F&O markets (NSE, BSE) and digital asset derivatives.</strong>
-</p>
+An institutional-grade algorithmic trading workstation, backtesting sandbox, and Proof-of-Authority (PoA) blockchain verification engine localized for the Indian Equity / F&O markets (NSE, BSE) and digital asset derivatives.
 
 [🌐 Vercel Live Web App](https://tradechain-platform.vercel.app/) • [⚡ Render Cloud Service](https://tradechain-platform.onrender.com) • [📦 GitHub Repository](https://github.com/itzdevilsunny/tradechain-platform) • [📖 Documentation](#-system-architecture) • [🗄️ Database Setup](#-supabase-postgresql-database-architecture) • [⚡ Quick Start](#-quick-start--local-setup)
-
-</div>
 
 ---
 
 ## 🏛️ Executive Summary
 
-**TradeChain** bridges high-frequency algorithmic trade execution across Indian broker APIs (**Upstox Pro API**, **Groww Trade Gateway**, **Zerodha Kite Connect**, and institutional **NSE FIX 4.4 Gateways**) with **immutable cryptographic state proof verification**.
+**TradeChain** bridges high-frequency algorithmic trade execution across Indian broker APIs (**Upstox Pro API v2**, **Groww Trade Gateway**, **Zerodha Kite Connect**, and institutional **NSE FIX 4.4 Gateways**) with **immutable cryptographic state proof verification**.
 
 Every order placement, strategy mutation, stop-loss trigger, and position liquidation is cryptographically digested into a **SHA-256 state hash**, signed via **ECDSA secp256k1**, bound into a **Merkle Tree**, and anchored to an on-chain consortium block. This guarantees zero-knowledge non-repudiation, tamper-evident audit trails, and strict compliance with SEBI algorithmic trading mandates.
 
@@ -32,20 +26,25 @@ Every order placement, strategy mutation, stop-loss trigger, and position liquid
 ## 🌟 Core Pillars & Key Features
 
 ### 1. 📊 Institutional Trading Overview Desk
+
 * **Live Indian Indices Pulse**: Real-time streaming pulse for `NIFTY 50`, `BANK NIFTY`, `FIN NIFTY`, `SENSEX`, and `INDIA VIX` with tick-level percentage badges.
-* **Instant Order Execution Modal**: Direct market/limit order entry routing to Upstox, Groww, Zerodha, or NSE FIX with real-time value and margin computation.
+* **Autonomous Multi-Asset AI Signal Engine**: Live telemetry analyzing `NIFTY 50`, `BANK NIFTY`, `FIN NIFTY`, `SENSEX`, `RELIANCE`, `TCS`, and `BTC/INR`. Evaluates real technical indicators (EMA 20/50, RSI 14, MACD) to independently output `BUY`, `SELL`, or `NEUTRAL` signals with dynamic confidence and institutional rationale.
+* **Interactive AI Multi-Asset Radar**: Quick-switch asset pills and live signal radar status matrix directly in the AI Telemetry panel.
+* **Zero Dummy Data KPI Cards**: 100% real-time calculation of Portfolio Balance (Cash + Market Value), Today's Realized & Unrealized P&L, Active Long/Short Counts, Win Rate derived from actual closed trades, and cryptographic Block Continuity verification.
+* **Instant Order Execution**: Direct market/limit order entry routing to Upstox Pro API v2 with real-time value and margin validation.
 * **Emergency Stop All**: 1-click panic liquidation modal that closes all open market exposure and commits immediate terminal records to the ledger.
-* **Sector Performance Heatmap**: Real-time 1-minute heatmap tracking Nifty IT, Banking, Auto, Pharma, Metals, and FMCG alongside the Advances/Declines breadth ratio.
-* **5 Executive KPI Cards**: Dynamic tracking of Portfolio Value, Today's P&L, Active Positions (Long/Short), Win Rate (71.4%), and 100% Chain Integrity.
+* **Sector Performance Heatmap**: Real-time 60-second polling stream tracking NIFTY IT, Banking, Auto, Pharma, Metals, Energy, and FMCG.
 
 ### 2. 🤖 Autonomous Trading Bot Control
+
+* **Multi-Strategy Round-Robin Scanner**: Continuously cycles through active running strategies (`NIFTY 50 Futures`, `BANK NIFTY Futures`, `RELIANCE IND`, `TCS`), querying live candlesticks and Groq LLM inference to trigger automated executions when confidence exceeds 75%.
 * **Active Strategies Grid**: Real-time strategy cards with live toggle switches (`RUNNING` / `PAUSED`), fill rates, and signals generated today.
-* **Manual Order Routing**: Order placement form supporting multiple order types (`MARKET`, `LIMIT`, `SL-M`) and exchange gateway selection.
 * **Performance Analytics**: Recharts cumulative P&L equity curves and strategy comparative bar visualizers.
 * **Level 2 Order Book Depth**: Live simulated bid/ask depth ladder with dynamic spreads and animated micro-flashes.
 * **Execution Terminal**: Real-time streaming terminal with severity filtering (`INFO`, `SIGNAL`, `EXECUTION`, `WARN`, `BLOCK`) and 1-click log downloader.
 
 ### 3. 🧪 Strategy Lab & Parameter Optimizer
+
 * **Strategy Registry**: Real-time search and status filtering (`ALL`, `ACTIVE`, `PAUSED`). Direct actions to backtest, configure parameters, clone strategy, export JSON manifest, and decommission.
 * **Comparative Analytics Matrix**: Benchmark returns, win rates, and drawdowns across algorithms with risk-adjusted metrics (Profit Factor, Sharpe Ratio, Expectancy).
 * **Interactive Parameter Optimizer**: Monte Carlo 500-trade sweep sandbox with live sliders for Fast/Slow EMA, RSI thresholds, SL/TP %, and equity curve visualizer.
@@ -53,6 +52,7 @@ Every order placement, strategy mutation, stop-loss trigger, and position liquid
 * **Algorithm Code Viewer**: View production-ready Python 3.11 quantitative trading models and download JSON manifests.
 
 ### 4. 🛡️ Cryptographic Audit & Verification Engine
+
 * **Single Trade Verifier**: 6-stage verification lifecycle confirming canonical JSON intake, SHA-256 digest, secp256k1 digital signatures, Merkle path inclusion, PoA block consensus, and immutability.
 * **Tamper Lab (Attack Simulator)**: Interactive adversarial testing sandbox where users can mutate trade price, volume, or timestamp to observe real-time SHA-256 collision and Merkle proof rejection.
 * **Batch Verification Queue**: Parallel verification engine validating multi-trade batches with progress tracking.
@@ -61,16 +61,19 @@ Every order placement, strategy mutation, stop-loss trigger, and position liquid
 * **SEBI Audit Certificate Modal**: Generates official, downloadable, and printable cryptographic compliance certificates with Merkle inclusion paths and consortium signatures.
 
 ### 5. 📜 Enterprise Cryptographic Audit Trail
+
 * **Append-Only Event Ledger**: Continuous record of all order actions, block commitments, strategy updates, and risk limit changes.
 * **Live Event Simulator**: Inject real-time governance, risk, and consensus events with immediate SHA-256 state anchoring.
 * **Sequential Chain Integrity Checking**: Traverses log pointers to verify zero breaks in hash sequence.
 * **Multi-Format Export**: 1-click export to CSV and JSON for external auditor compliance.
 
 ### 6. 📉 Comprehensive Backtesting Engine
+
 * Historical candle playback across Indian equities (Reliance, HDFC Bank, Infosys, NIFTY 50 Futures).
 * Dynamic performance visualizers: Cumulative Equity Trajectory, Drawdown Depth Spectrums, Monthly Return Heatmaps, and Trade Distribution tables.
 
 ### 7. ⚖️ Risk Management Center
+
 * Real-time portfolio Value at Risk (VaR 95% & 99%), Maximum Drawdown circuit breakers, Leverage caps, and automated Pre-Trade margin checks.
 
 ---
@@ -90,7 +93,7 @@ flowchart TD
         FIX --> ENGINE["TradeChain Algo Engine"]
         ENGINE --> STRAT["Strategy Lab (EMA / RSI / VWAP)"]
         ENGINE --> RISK["SEBI Risk Controller (VaR / SL / Margin)"]
-        STRAT --> SIGNALS["AI Signal Copilot (LLaMA 3.3 / Gemini)"]
+        STRAT --> SIGNALS["AI Signal Copilot (Groq Qwen-27B / Gemini)"]
     end
 
     subgraph CryptoConsensus ["3. Proof-of-Authority (PoA) Consortium Ledger"]
@@ -121,7 +124,7 @@ flowchart TD
 | **Styling & Design** | **Tailwind CSS 3.4** + Vanilla CSS | Institutional dark/light themes, tactile 3D linear buttons |
 | **Data Visualization** | **Recharts 2.15** + HTML5 Canvas | Real-time candlestick charts, equity curves, drawdown areas |
 | **Icons & Assets** | **Lucide React** | Consistent institutional icon library |
-| **AI Copilot** | **Groq (GPT-OSS-120B & Qwen 3.8)** + **Gemini** | Live quantitative reasoning with real-time telemetry |
+| **AI Copilot** | **Groq (Qwen 3.8-27B & GPT-OSS-120B)** + **Gemini** | Live quantitative reasoning with real-time telemetry |
 | **Market Data Feed** | **Yahoo Finance Engine / NSE Ticker Stream** | Genuine live quotes (`^NSEI`, `^NSEBANK`, `^BSESN`) & 60s Sector Heatmap |
 | **Broker Gateways** | **Upstox Pro API v2**, **Zerodha Kite**, **Groww** | Institutional order placement, JWT telemetry, and FIX execution |
 | **Cryptography** | **SHA-256**, **ECDSA secp256k1**, **Merkle Trees** | Immutability, non-repudiation, tamper detection |
@@ -133,7 +136,7 @@ flowchart TD
 
 TradeChain utilizes a production-grade Supabase PostgreSQL cluster with **11 interconnected tables**, strict check constraints, safe Row Level Security (RLS) policies, and Realtime WebSocket replication:
 
-```
+```text
 ┌────────────────────────────────────────────────────────────────────────┐
 │                     TRADECHAIN DATABASE SCHEMA                         │
 ├─────────────────────┬──────────────────────────┬───────────────────────┤
@@ -152,29 +155,37 @@ TradeChain utilizes a production-grade Supabase PostgreSQL cluster with **11 int
 ```
 
 The master database schema is located at [`supabase/schema.sql`](supabase/schema.sql). It is completely idempotent and safe to re-run in the Supabase SQL editor:
+
 * Automatic `DROP POLICY IF EXISTS` guards to prevent policy collision errors.
 * Safe Realtime replication publications wrapped in `EXCEPTION WHEN duplicate_object THEN NULL;`.
 * Comprehensive seed data for active F&O contracts (`NIFTY 24800 CE`, `BANKNIFTY 51500 PE`), PoA blocks, and validator keys.
 
+---
+
 ## 🚀 Quick Start & Local Setup
 
 ### Prerequisites
+
 * **Node.js**: v18.0.0 or higher
 * **npm**: v9.0.0 or higher
 
 ### 1. Clone the Repository
+
 ```bash
 git clone https://github.com/itzdevilsunny/tradechain-platform.git
 cd tradechain-platform
 ```
 
 ### 2. Install Dependencies
+
 ```bash
 npm install
 ```
 
 ### 3. Environment Variables Configuration
+
 Ensure your `.env` contains your live configurations:
+
 ```env
 VITE_SUPABASE_URL=https://your-project.supabase.co
 VITE_SUPABASE_ANON_KEY=your-anon-key
@@ -185,15 +196,19 @@ VITE_RAPIDAPI_KEY=your-rapidapi-key
 ```
 
 ### 4. Start Local Development Server
+
 ```bash
 npm run dev
 ```
+
 Navigate to `http://127.0.0.1:3000` in your web browser.
 
 ### 5. Production Build & Validation
+
 ```bash
 npm run build
 ```
+
 Executes TypeScript type-checking (`tsc`) followed by Vite production bundling into `/dist`.
 
 ---

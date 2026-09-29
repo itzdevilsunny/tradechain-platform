@@ -38,15 +38,21 @@ const buildPnlTimeline = (trades: TradeRecord[]) => {
   });
 };
 
-// Throughput data (24 hours)
-const generateThroughputData = () =>
-  Array.from({ length: 24 }, (_, i) => ({
+// Throughput data (24 hours) — realistic NSE-market-hours pattern, no Math.random
+const generateThroughputData = (trades: TradeRecord[]) => {
+  const buyCount = trades.filter(t => t.side === 'BUY').length;
+  const sellCount = trades.filter(t => t.side === 'SELL').length;
+  const totalCount = Math.max(1, buyCount + sellCount);
+  return Array.from({ length: 24 }, (_, i) => ({
     hour: `${i.toString().padStart(2, '0')}:00`,
-    tps: Math.floor(100 + Math.sin(i * 0.5) * 45 + Math.random() * 20),
-    buy: Math.floor(60 + Math.random() * 30),
-    sell: Math.floor(40 + Math.random() * 30),
+    // TPS peaks during market hours (NSE 9:15am-3:30pm = hours 9-15)
+    tps: Math.round(80 + Math.sin(i * 0.5) * 45 + (i >= 9 && i <= 15 ? 80 : 0)),
+    // buy/sell ratio from real trades
+    buy: Math.round((buyCount / totalCount) * (50 + Math.sin(i * 0.4) * 15)),
+    sell: Math.round((sellCount / totalCount) * (40 + Math.cos(i * 0.4) * 15)),
     feeAvg: Math.round((1.1 + Math.cos(i * 0.4) * 0.3) * 100) / 100,
   }));
+};
 
 // Asset distribution
 const buildAssetDistribution = (trades: TradeRecord[]) => {
@@ -81,7 +87,7 @@ export const TransactionExplorer: React.FC<TransactionExplorerProps> = ({
   const [selectedTxDetail, setSelectedTxDetail] = useState<TradeRecord | null>(null);
   const [mempool, setMempool] = useState(MEMPOOL_INITIAL);
   const [mempoolAge, setMempoolAge] = useState(0);
-  const [throughputData] = useState(generateThroughputData());
+  const [throughputData] = useState(() => generateThroughputData(initialTrades));
   const [pnlData, setPnlData] = useState(() => buildPnlTimeline(initialTrades));
   const [assetDist, setAssetDist] = useState(() => buildAssetDistribution(initialTrades));
   const [selectedLifecycleTx, setSelectedLifecycleTx] = useState<TradeRecord | null>(null);

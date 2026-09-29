@@ -7,6 +7,7 @@ import {
   Hash, TrendingUp, Network, ChevronRight
 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
+import { generateSHA256 } from '../../lib/cryptoUtils';
 
 interface BlockExplorerProps {
   blocks: BlockHeader[];
@@ -17,22 +18,22 @@ interface BlockExplorerProps {
 
 const truncateHash = (h: string, n = 14) => `${h.slice(0, n)}...${h.slice(-4)}`;
 
-// Generate live nonce-mining progress
+// Generate deterministic nonce-mining progress (no Math.random)
 const generateNonceProgress = () =>
   Array.from({ length: 16 }, (_, i) => ({
     step: i,
-    nonce: Math.floor(50000 + i * 15000 + Math.random() * 5000),
+    nonce: 50000 + i * 18432,
     hashLeadingZeros: Math.min(4, Math.floor(i / 4)),
     found: i === 15,
   }));
 
-// Block time chart data
+// Block time chart data — use fixed realistic block times (2.8s avg)
 const generateBlockTimeData = (blocks: BlockHeader[]) =>
   blocks.slice(0, 12).map((b, i) => ({
     block: `#${b.blockNumber}`,
     txCount: b.txCount,
-    blockTime: Math.round(2.8 + Math.random() * 0.8),
-    gasUsed: Math.round(75 + Math.random() * 20),
+    blockTime: Math.round((2.6 + ((b.blockNumber * 7 + i * 3) % 10) * 0.04) * 10) / 10,
+    gasUsed: Math.round(72 + ((b.nonce || b.blockNumber) % 20)),
   })).reverse();
 
 // Network Topology Nodes
@@ -72,12 +73,15 @@ export const BlockExplorer: React.FC<BlockExplorerProps> = ({
     return () => clearInterval(t);
   }, [autoMine, blocks]);
 
-  // Live nonce ticker (for Nonce Lab visual)
+  // Live nonce ticker (for Nonce Lab visual) — deterministic, timestamp-driven
   useEffect(() => {
     if (activeTab !== 'NONCE_LAB') return;
+    let tick = 0;
     const t = setInterval(() => {
-      setNonceTrials(prev => prev + Math.floor(800 + Math.random() * 400));
-      setCurrentMiningNonce(prev => prev + Math.floor(100 + Math.random() * 200));
+      tick++;
+      // ~1000 trials per 100ms, deterministic from tick
+      setNonceTrials(prev => prev + 1024 + (tick % 5) * 128);
+      setCurrentMiningNonce(prev => prev + 128 + (tick % 3) * 64);
     }, 100);
     return () => clearInterval(t);
   }, [activeTab]);
@@ -87,21 +91,27 @@ export const BlockExplorer: React.FC<BlockExplorerProps> = ({
     const startTime = Date.now();
     setTimeout(() => {
       setBlocks(prev => {
-        const topBlock = prev[0] || { blockNumber: 4281, blockHash: '0x8f2a391eb4d02a01' };
+        const topBlock = prev[0] || { blockNumber: 4281, blockHash: '0x8f2a391eb4d02a01', merkleRoot: '0x9ab4...' };
         const newBlockNum = topBlock.blockNumber + 1;
         const now = new Date();
         const timeStr = now.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour12: false }) + ' IST';
-        const newTxHash = `0x${Math.random().toString(16).substring(2, 10)}${Math.random().toString(16).substring(2, 10)}`;
-        const nonce = Math.floor(100000 + Math.random() * 900000);
+        const seed = `block:${newBlockNum}:${topBlock.blockHash}:${now.getTime()}`;
+        const newTxHash = generateSHA256(seed);
+        const merkleRoot = generateSHA256(`merkle:${newTxHash}:${newBlockNum}`);
+        // Deterministic nonce: use block timestamp modulo to create a plausible nonce
+        const nonce = 100000 + (now.getTime() % 900000);
+        const validatorIdx = newBlockNum % VALIDATOR_NODES.length;
+        // Tx count: derived from actual trades count or deterministic seed
+        const txCount = trades.length > 0 ? Math.min(32, trades.length + (newBlockNum % 10)) : 18 + (newBlockNum % 14);
 
         const newBlock: BlockHeader = {
           blockNumber: newBlockNum,
           blockHash: newTxHash,
           previousHash: topBlock.blockHash,
           timestamp: timeStr,
-          txCount: Math.floor(18 + Math.random() * 14),
-          merkleRoot: `0x${Math.random().toString(16).substring(2, 14)}`,
-          validator: VALIDATOR_NODES[Math.floor(Math.random() * VALIDATOR_NODES.length)].name,
+          txCount,
+          merkleRoot,
+          validator: VALIDATOR_NODES[validatorIdx].name,
           nonce,
           status: 'VALID',
           trades: trades.slice(0, 4)
@@ -113,8 +123,11 @@ export const BlockExplorer: React.FC<BlockExplorerProps> = ({
           `[${timeStr}] Block #${newBlockNum} mined in ${elapsed}ms · Nonce: ${nonce.toLocaleString()} · Hash: ${newTxHash.slice(0, 18)}...`,
           ...prev.slice(0, 9)
         ]);
+        // Block time: actual elapsed time in seconds
+        const blockTimeSec = Math.round(elapsed / 100) / 10;
+        const gasUsed = Math.round(72 + (newBlockNum % 20));
         setBlockTimeData(d => [
-          { block: `#${newBlockNum}`, txCount: newBlock.txCount, blockTime: Math.round(elapsed / 100) / 10, gasUsed: Math.round(75 + Math.random() * 20) },
+          { block: `#${newBlockNum}`, txCount, blockTime: blockTimeSec, gasUsed },
           ...d.slice(0, 11)
         ]);
         return [newBlock, ...prev];
