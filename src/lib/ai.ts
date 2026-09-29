@@ -8,7 +8,8 @@ export function getActiveGroqKey(): string {
     const local = localStorage.getItem('tradechain_groq_key');
     if (local && local.trim()) return local.trim();
   }
-  const envKey = (import.meta as any).env?.VITE_GROQ_API_KEY;
+  const envObj = (import.meta as any).env || {};
+  const envKey = envObj.VITE_GROQ_API_KEY || envObj.GROQ_API_KEY;
   if (envKey && envKey.trim() && envKey !== 'undefined') return envKey.trim();
   return DEFAULT_GROQ_KEY;
 }
@@ -64,7 +65,8 @@ export async function testGroqConnection(overrideKey?: string): Promise<{ succes
 
 export async function askTradeChainAI(prompt: string, context?: any): Promise<string> {
   const groqKey = getActiveGroqKey();
-  const geminiKey = (import.meta as any).env?.VITE_GEMINI_API_KEY;
+  const envObj = (import.meta as any).env || {};
+  const geminiKey = envObj.VITE_GEMINI_API_KEY || envObj.GEMINI_API_KEY;
 
   const niftyPrice = context?.niftyPrice ? `₹${Number(context.niftyPrice).toLocaleString('en-IN')}` : 'Live Market Feed';
   const bankNiftyPrice = context?.bankNiftyPrice ? `₹${Number(context.bankNiftyPrice).toLocaleString('en-IN')}` : 'Live Market Feed';

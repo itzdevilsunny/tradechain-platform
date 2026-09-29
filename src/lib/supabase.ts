@@ -1,8 +1,9 @@
 import { createClient } from '@supabase/supabase-js';
 import { ActivePosition, TradeRecord, BlockHeader, StrategyConfig, AuditLogItem } from '../types/trading';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://trrdxwefrnjlzkrrnjdp.supabase.co';
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_VKRd5g5ZvQoK8yI2Mq4Clg_YSo5bkFV';
+const envObj = (import.meta as any).env || {};
+const supabaseUrl = envObj.VITE_SUPABASE_URL || envObj.SUPABASE_URL || 'https://trrdxwefrnjlzkrrnjdp.supabase.co';
+const supabaseAnonKey = envObj.VITE_SUPABASE_ANON_KEY || envObj.SUPABASE_ANON_KEY || 'sb_publishable_VKRd5g5ZvQoK8yI2Mq4Clg_YSo5bkFV';
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 

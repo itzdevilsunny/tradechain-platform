@@ -51,7 +51,8 @@ class UpstoxService {
       this.token = fromStorage.trim();
       return this.token;
     }
-    const envToken = (import.meta as any).env?.VITE_UPSTOX_ACCESS_TOKEN;
+    const envObj = (import.meta as any).env || {};
+    const envToken = envObj.VITE_UPSTOX_ACCESS_TOKEN || envObj.UPSTOX_ACCESS_TOKEN;
     if (envToken && envToken.trim()) {
       this.token = envToken.trim();
       return this.token;
