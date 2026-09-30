@@ -84,6 +84,16 @@ export interface AISignalData {
     macdHist: number;
   };
   rationale: string;
+  probabilityUp?: number;
+  probabilityDown?: number;
+  probabilityNeutral?: number;
+  expectedReturn?: number;
+  expectedVolatility?: number;
+  marketRegime?: string;
+  targetPrice?: number;
+  stopLossPrice?: number;
+  riskRewardRatio?: number;
+  sentimentScore?: number;
 }
 
 export interface BlockHeader {

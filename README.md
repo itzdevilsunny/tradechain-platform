@@ -35,11 +35,14 @@ Every order placement, strategy mutation, stop-loss trigger, and position liquid
 * **Emergency Stop All**: 1-click panic liquidation modal that closes all open market exposure and commits immediate terminal records to the ledger.
 * **Sector Performance Heatmap**: Real-time 60-second polling stream tracking NIFTY IT, Banking, Auto, Pharma, Metals, Energy, and FMCG.
 
-### 2. 🤖 Autonomous Trading Bot Control
+### 2. 🤖 LightGBM Ensemble ML Brain & Autonomous Bot Control
 
-* **Multi-Strategy Round-Robin Scanner**: Continuously cycles through active running strategies (`NIFTY 50 Futures`, `BANK NIFTY Futures`, `RELIANCE IND`, `TCS`), querying live candlesticks and Groq LLM inference to trigger automated executions when confidence exceeds 75%.
-* **Active Strategies Grid**: Real-time strategy cards with live toggle switches (`RUNNING` / `PAUSED`), fill rates, and signals generated today.
-* **Performance Analytics**: Recharts cumulative P&L equity curves and strategy comparative bar visualizers.
+* **LightGBM Ensemble Quant Inference Engine**: In-browser gradient boosted decision tree ensemble with 4 sub-models (`TrendModel`, `MomentumModel`, `RegimeModel`, `SentimentModel`) yielding calibrated probabilities $P(\text{UP}), P(\text{DOWN}), P(\text{NEUTRAL})$ via Softmax normalization.
+* **Deterministic Quantitative Feature Engine**: Real-time extraction of EMA 12/20/50/200, RSI 14, MACD Histogram, Average True Range (ATR 14), Volume-Weighted Average Price (VWAP), Bollinger Bands with bandwidth expansion, Average Directional Index (ADX), and automated Market Regime classification (`TRENDING_UP`, `TRENDING_DOWN`, `SIDEWAYS`, `HIGH_VOLATILITY`, `LOW_VOLATILITY`).
+* **Multi-Tier News Sentiment Pipeline**: Real-time sentiment ingestion via Finnhub API $\rightarrow$ NewsAPI $\rightarrow$ GDELT Document API fallback chain, normalized with dictionary-based NLP scoring and financial domain weighting.
+* **Deterministic Risk Engine**: Pre-trade validation with mandatory SEBI capital risk sizing ($0.5\%$ max risk per trade), ATR-derived stop-loss ($1.5 \times \text{ATR}$), dual-stage profit taking ($+1R / +2R$), open position exposure limits, and daily circuit breaker kill-switch ($1.5\%$ portfolio drawdown).
+* **Multi-Strategy Round-Robin Scanner**: Continuously cycles through active strategies (`NIFTY 50 Futures`, `BANK NIFTY Futures`, `RELIANCE IND`, `TCS`), querying live candlesticks and executing orders when ensemble confidence exceeds $75\%$ and risk criteria pass.
+* **Active Position Trailing Stop Ratchet**: Dynamic monitoring of active positions with high-watermark ratcheting trailing stops and automated partial profit exits.
 * **Level 2 Order Book Depth**: Live simulated bid/ask depth ladder with dynamic spreads and animated micro-flashes.
 * **Execution Terminal**: Real-time streaming terminal with severity filtering (`INFO`, `SIGNAL`, `EXECUTION`, `WARN`, `BLOCK`) and 1-click log downloader.
 
@@ -82,29 +85,37 @@ Every order placement, strategy mutation, stop-loss trigger, and position liquid
 
 ```mermaid
 flowchart TD
-    subgraph MarketIngestion ["1. Market Data & Broker Ingestion"]
-        NSE["NSE / BSE Tick Stream"] --> FIX["NSE FIX 4.4 Engine"]
-        UPSTOX["Upstox Pro API"] --> FIX
-        GROWW["Groww Trade API"] --> FIX
-        ZERODHA["Zerodha Kite Connect"] --> FIX
+    subgraph MarketData ["1. Live Market & Sentiment Ingestion"]
+        NSE["NSE / BSE Live Tick Stream"] --> MDE["Market Data Engine"]
+        YFIN["Yahoo Finance / Upstox API"] --> MDE
+        FINN["Finnhub News API"] --> SENT["Sentiment Pipeline"]
+        NEWS["NewsAPI / GDELT"] --> SENT
     end
 
-    subgraph AlgoCore ["2. Quantitative Core & Execution"]
-        FIX --> ENGINE["TradeChain Algo Engine"]
-        ENGINE --> STRAT["Strategy Lab (EMA / RSI / VWAP)"]
-        ENGINE --> RISK["SEBI Risk Controller (VaR / SL / Margin)"]
-        STRAT --> SIGNALS["AI Signal Copilot (Groq Qwen-27B / Gemini)"]
+    subgraph QuantCore ["2. Feature & LightGBM ML Engine"]
+        MDE --> FEAT["Feature Engine (EMA/RSI/ATR/VWAP/ADX)"]
+        FEAT --> REGIME["Market Regime Classifier"]
+        FEAT --> ML["LightGBM Ensemble ML Brain"]
+        SENT --> ML
+        REGIME --> ML
     end
 
-    subgraph CryptoConsensus ["3. Proof-of-Authority (PoA) Consortium Ledger"]
-        ENGINE --> HASH["SHA-256 State Serializer"]
+    subgraph RiskAndExec ["3. Deterministic Risk & Execution"]
+        ML --> RISK["Deterministic Risk Engine (0.5% Risk, 1.5x ATR SL)"]
+        RISK -->|Approved| EXEC["Order Router (Upstox Pro / FIX)"]
+        RISK -->|Vetoed| BLOCK["Audit Log Block Reason"]
+        ML --> EXPLAIN["Groq LLM (Qualitative Rationale Only)"]
+    end
+
+    subgraph CryptoConsensus ["4. Proof-of-Authority (PoA) Consortium Ledger"]
+        EXEC --> HASH["SHA-256 State Serializer"]
         HASH --> ECDSA["secp256k1 Digital Signature"]
         ECDSA --> MERKLE["Merkle Tree Root Aggregator"]
-        MERKLE --> BLOCKS["Consortium Block #4282"]
+        MERKLE --> BLOCKS["Consortium Block Commitment"]
         BLOCKS --> NODES["14/14 Validator Quorum Affirmation"]
     end
 
-    subgraph AuditVerification ["4. Audit & Verification Interface"]
+    subgraph AuditVerification ["5. Audit & Verification Interface"]
         BLOCKS --> VERIFY["Cryptographic Trade Verifier"]
         VERIFY --> TAMPER["Tamper Lab (Attack Simulator)"]
         VERIFY --> ZK["ZK-PLONK Circuit Prover"]
@@ -120,11 +131,14 @@ flowchart TD
 | :--- | :--- | :--- |
 | **Frontend Framework** | **React 19.0.0** + **TypeScript 5.7** | Core component state, strict typing, responsive rendering |
 | **Build & Tooling** | **Vite 6.1** | Sub-second HMR, optimized production bundling, proxy configuration |
+| **ML Inference Engine** | **LightGBM Ensemble (TS/JS)** | Multi-tree gradient boosting for trend, momentum, regime, and sentiment calibration |
+| **Quantitative Analysis** | **Feature Engine & Risk Controller** | Real-time EMA, RSI, ATR, VWAP, Bollinger, ADX, and $0.5\%$ capital risk sizing |
+| **Sentiment Intelligence** | **Finnhub + NewsAPI + GDELT** | Multi-tiered live financial news sentiment scoring pipeline |
 | **Database & Realtime** | **Supabase (PostgreSQL 15)** | Relational storage for trades, positions, blocks, and realtime publications |
 | **Styling & Design** | **Tailwind CSS 3.4** + Vanilla CSS | Institutional dark/light themes, tactile 3D linear buttons |
 | **Data Visualization** | **Recharts 2.15** + HTML5 Canvas | Real-time candlestick charts, equity curves, drawdown areas |
 | **Icons & Assets** | **Lucide React** | Consistent institutional icon library |
-| **AI Copilot** | **Groq (Qwen 3.8-27B & GPT-OSS-120B)** + **Gemini** | Live quantitative reasoning with real-time telemetry |
+| **AI Copilot & Explainer** | **Groq (Qwen 3.8-27B & GPT-OSS-120B)** + **Gemini** | Qualitative quantitative reasoning explaining ML signals with live telemetry |
 | **Market Data Feed** | **Yahoo Finance Engine / NSE Ticker Stream** | Genuine live quotes (`^NSEI`, `^NSEBANK`, `^BSESN`) & 60s Sector Heatmap |
 | **Broker Gateways** | **Upstox Pro API v2**, **Zerodha Kite**, **Groww** | Institutional order placement, JWT telemetry, and FIX execution |
 | **Cryptography** | **SHA-256**, **ECDSA secp256k1**, **Merkle Trees** | Immutability, non-repudiation, tamper detection |
@@ -193,6 +207,10 @@ VITE_GROQ_API_KEY=your-groq-api-key
 VITE_GEMINI_API_KEY=your-gemini-api-key
 VITE_UPSTOX_ACCESS_TOKEN=your-upstox-jwt-token
 VITE_RAPIDAPI_KEY=your-rapidapi-key
+VITE_NEWS_API_KEY=your-news-api-key
+VITE_FINNHUB_API_KEY=your-finnhub-api-key
+VITE_REDIS_TOKEN=your-redis-token
+VITE_GDELT_API_URL=https://api.gdeltproject.org/api/v2/doc/doc
 ```
 
 ### 4. Start Local Development Server

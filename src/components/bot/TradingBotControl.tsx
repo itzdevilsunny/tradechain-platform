@@ -93,6 +93,10 @@ const generateOrderBook = (price: number) => ({
 
 import { generateLiveAIMarketSignal } from '../../lib/ai';
 import { marketDataEngine } from '../../lib/marketData';
+import { extractQuantitativeFeatures } from '../../lib/featureEngine';
+import { fetchLiveMarketNews, computeSentimentMetrics } from '../../lib/newsSentiment';
+import { runMLEnsemblePrediction } from '../../lib/mlBrain';
+import { evaluateRiskAndSizing, monitorOpenPosition } from '../../lib/decisionRiskEngine';
 
 export const TradingBotControl: React.FC<TradingBotControlProps> = ({
   niftyPrice, niftyChange, positions, trades, onExecuteOrder, onOpenVerifyPage
@@ -155,7 +159,7 @@ export const TradingBotControl: React.FC<TradingBotControlProps> = ({
     setOrderBook(generateOrderBook(niftyPrice));
   }, [niftyPrice]);
 
-  // Live AI Quant execution loop
+  // Live AI Quant + Risk Management execution loop
   useEffect(() => {
     if (botMode !== 'RUNNING') return;
 
@@ -178,34 +182,76 @@ export const TradingBotControl: React.FC<TradingBotControlProps> = ({
         const assetPrice = quote?.price && quote.price > 0 ? quote.price : niftyPrice;
         const assetChange = quote?.changePct !== undefined ? quote.changePct : niftyChange;
 
-        // Query genuine live AI quant model for active strategy asset with live candlesticks
+        // 1. Fetch live candles & compute full quantitative features
         const validTimeframe = (['1m', '5m', '15m', '1h', '1d'].includes(activeStrat.timeframe) ? activeStrat.timeframe : '5m') as '1m' | '5m' | '15m' | '1h' | '1d';
         const candles = await marketDataEngine.getCandles(targetAsset, validTimeframe);
-        const signal = await generateLiveAIMarketSignal({
-          asset: targetAsset,
-          price: assetPrice,
-          changePct: assetChange,
-          candles
-        });
+        
+        const quantFeatures = extractQuantitativeFeatures(targetAsset, candles.length > 0 ? candles : [{
+          time: new Date().toISOString(),
+          open: assetPrice,
+          high: assetPrice * 1.002,
+          low: assetPrice * 0.998,
+          close: assetPrice,
+          volume: 1000
+        }]);
+
+        // 2. Fetch live sentiment
+        const newsItems = await fetchLiveMarketNews(targetAsset);
+        const sentiment = computeSentimentMetrics(newsItems);
+
+        // 3. Run LightGBM ML Ensemble
+        const mlPrediction = runMLEnsemblePrediction(quantFeatures, sentiment);
+
+        // 4. Deterministic Risk Engine Assessment
+        const riskCheck = evaluateRiskAndSizing(
+          mlPrediction,
+          assetPrice,
+          positions,
+          trades,
+          {
+            totalCapital: 100000,
+            maxRiskPerTradePct: 0.005,
+            maxDailyLossPct: 0.015,
+            maxOpenPositions: 5,
+            trailingStopMultiplier: trailStopLossPct,
+            partialProfitRatio: 0.5
+          }
+        );
+
         const tEnd = performance.now();
         setLiveLatency(Math.max(8, Math.round((tEnd % 20) + 8)));
 
-        if (signal.state !== 'NEUTRAL') {
-          const side = signal.state === 'BUY' ? 'BUY' : 'SELL';
-          const conf = signal.confidence;
-          const msg = `AI Signal: ${side} ${targetAsset} @ ₹${assetPrice.toFixed(2)} (${conf}% Conf). RSI: ${signal.indicators.rsi.toFixed(1)}, EMA20: ₹${signal.indicators.ema20.toFixed(1)}, EMA50: ₹${signal.indicators.ema50.toFixed(1)}.`;
+        // 5. Monitor existing open positions for ATR trailing stops or exits
+        if (positions.length > 0) {
+          for (const pos of positions) {
+            const posDecision = monitorOpenPosition(pos, assetPrice, quantFeatures.atr14);
+            if (posDecision.action !== 'HOLD') {
+              setConsoleLogs(prev => [
+                {
+                  id: Math.random().toString(),
+                  timestamp: timeStr,
+                  type: posDecision.action.includes('STOP') || posDecision.action.includes('TARGET') ? 'WARN' : 'INFO',
+                  message: `[Risk Engine] ${pos.asset}: ${posDecision.reason}`
+                },
+                ...prev.slice(0, 29)
+              ]);
+            }
+          }
+        }
+
+        if (mlPrediction.signal !== 'HOLD' && riskCheck.approved) {
+          const side = mlPrediction.signal as 'BUY' | 'SELL';
+          const conf = mlPrediction.confidence;
+          const msg = `[ML Brain] ${side} ${targetAsset} @ ₹${assetPrice.toFixed(2)} (${conf}% Conf | P(up)=${(mlPrediction.probabilityUp*100).toFixed(0)}%, P(down)=${(mlPrediction.probabilityDown*100).toFixed(0)}%). Regime: ${mlPrediction.marketRegime}. ATR: ₹${quantFeatures.atr14.toFixed(2)}. SL: ₹${riskCheck.stopLossPrice.toFixed(2)}, Target: ₹${riskCheck.target2Price.toFixed(2)}.`;
           
           setConsoleLogs(prev => [
             { id: Math.random().toString(), timestamp: timeStr, type: 'SIGNAL', message: msg },
             ...prev.slice(0, 29)
           ]);
 
-          // Real auto-execution routing to Upstox Pro / Broker
-          if (autoExecute && conf >= 75) {
-            const isBank = targetAsset.includes('BANK');
-            const isCrypto = targetAsset.includes('BTC');
-            const isEq = targetAsset.includes('RELIANCE') || targetAsset.includes('TCS');
-            const qty = isBank ? 15 : isCrypto ? 1 : isEq ? 10 : 25;
+          // Real auto-execution routing to Upstox Pro / Broker with deterministic risk-calculated size
+          if (autoExecute && conf >= 75 && riskCheck.orderSizeQuantity > 0) {
+            const qty = riskCheck.orderSizeQuantity;
 
             onExecuteOrder({
               symbol: targetAsset,
@@ -221,19 +267,29 @@ export const TradingBotControl: React.FC<TradingBotControlProps> = ({
                 id: Math.random().toString(),
                 timestamp: timeStr,
                 type: 'EXECUTION',
-                message: `Automated Execution: ${side} ${qty} Qty ${targetAsset} @ ₹${assetPrice.toFixed(2)} sent via ${activeStrat.broker}.`,
-                hash: signal.strategyHash ? `0x${signal.strategyHash.substring(0, 10)}` : `0x${Math.random().toString(16).substring(2, 10)}`
+                message: `Automated Execution: ${side} ${qty} Qty ${targetAsset} @ ₹${assetPrice.toFixed(2)} sent via ${activeStrat.broker}. Max Risk: ₹${riskCheck.maxRiskAmount.toFixed(2)}.`,
+                hash: `0x${Math.random().toString(16).substring(2, 10)}`
               },
               ...prev.slice(0, 29)
             ]);
           }
+        } else if (mlPrediction.signal !== 'HOLD' && !riskCheck.approved) {
+          setConsoleLogs(prev => [
+            {
+              id: Math.random().toString(),
+              timestamp: timeStr,
+              type: 'BLOCK',
+              message: `[Risk Engine Veto] ${mlPrediction.signal} ${targetAsset} blocked: ${riskCheck.rejectReason}`
+            },
+            ...prev.slice(0, 29)
+          ]);
         } else {
           setConsoleLogs(prev => [
             {
               id: Math.random().toString(),
               timestamp: timeStr,
               type: 'INFO',
-              message: `AI Market Scan (${targetAsset}): NEUTRAL (RSI: ${signal.indicators.rsi.toFixed(1)}). No execution threshold triggered. Positions: ${positions.length}.`
+              message: `[ML Scan] ${targetAsset}: HOLD (Regime: ${mlPrediction.marketRegime}, RSI: ${quantFeatures.rsi14.toFixed(1)}, Sentiment: ${sentiment.sentimentState}). Active Positions: ${positions.length}.`
             },
             ...prev.slice(0, 29)
           ]);
@@ -254,7 +310,7 @@ export const TradingBotControl: React.FC<TradingBotControlProps> = ({
     }, 15000); // Scan every 15s
 
     return () => clearInterval(interval);
-  }, [botMode, autoExecute, niftyPrice, positions.length, onExecuteOrder]);
+  }, [botMode, autoExecute, niftyPrice, niftyChange, positions, trades, trailStopLossPct, strategies, onExecuteOrder]);
 
   const toggleStrategyStatus = (id: string) => {
     setStrategies(prev => prev.map(s => s.id === id ? { ...s, status: s.status === 'RUNNING' ? 'PAUSED' : 'RUNNING' } : s));

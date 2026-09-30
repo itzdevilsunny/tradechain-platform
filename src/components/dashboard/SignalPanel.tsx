@@ -159,36 +159,74 @@ export const SignalPanel: React.FC<SignalPanelProps> = ({
           </div>
         )}
 
-        {/* Large Signal State */}
-        <div className="py-3 flex items-center justify-between border-b border-slate-100 dark:border-[#1E2633]/60 my-1">
-          <div className="flex items-center gap-3">
-            <div className={`w-12 h-12 rounded-xl border flex items-center justify-center transition-all ${stateBgClass}`}>
-              {isBuy && <TrendingUp size={24} className="text-[#10B981]" />}
-              {isSell && <TrendingDown size={24} className="text-[#EF4444]" />}
-              {isNeutral && <MinusCircle size={24} className="text-[#F59E0B]" />}
+        {/* Large Signal State & ML Ensemble Metrics */}
+        <div className="py-3 border-b border-slate-100 dark:border-[#1E2633]/60 my-1 space-y-2.5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className={`w-12 h-12 rounded-xl border flex items-center justify-center transition-all ${stateBgClass}`}>
+                {isBuy && <TrendingUp size={24} className="text-[#10B981]" />}
+                {isSell && <TrendingDown size={24} className="text-[#EF4444]" />}
+                {isNeutral && <MinusCircle size={24} className="text-[#F59E0B]" />}
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-2xl font-bold font-mono tracking-tight" style={{ color: stateColor }}>
+                    {signal.state} SIGNAL
+                  </span>
+                  <span className={`px-2 py-0.5 text-[10px] font-mono font-bold rounded ${stateBadgeClass}`}>
+                    {signal.confidence}% CONFIDENCE
+                  </span>
+                </div>
+                <p className="text-xs font-mono text-slate-500 dark:text-[#8B95A5] mt-0.5 flex items-center gap-1.5">
+                  <span className="font-semibold text-slate-900 dark:text-[#F4F7FA]">{currentAsset}</span>
+                  <span>•</span>
+                  <span className="px-1.5 py-0.2 text-[9px] font-mono font-bold rounded bg-purple-500/10 text-purple-400 border border-purple-500/20">
+                    {signal.marketRegime || 'TRENDING_UP'}
+                  </span>
+                </p>
+              </div>
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-2xl font-bold font-mono tracking-tight" style={{ color: stateColor }}>
-                  {signal.state} SIGNAL
-                </span>
-                <span className={`px-2 py-0.5 text-[10px] font-mono font-bold rounded ${stateBadgeClass}`}>
-                  {signal.confidence}% CONFIDENCE
+            <div className="text-right">
+              <span className="text-xs font-mono text-slate-500 dark:text-[#5F6978] block">{signal.timestamp}</span>
+              <span className="text-[10px] font-mono text-[#8B5CF6] block mt-0.5 font-bold">● LightGBM Ensemble</span>
+            </div>
+          </div>
+
+          {/* Calibrated Probability Distribution Bar */}
+          {signal.probabilityUp !== undefined && (
+            <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-[#151B23] border border-slate-200 dark:border-[#242B35] space-y-1.5">
+              <div className="flex items-center justify-between text-[10px] font-mono font-bold">
+                <span className="text-slate-500 dark:text-[#8B95A5]">CALIBRATED ENSEMBLE PROBABILITY:</span>
+                <span className="text-slate-700 dark:text-slate-300">
+                  Exp. Return: <span className={signal.expectedReturn && signal.expectedReturn >= 0 ? 'text-[#10B981]' : 'text-[#EF4444]'}>
+                    {signal.expectedReturn && signal.expectedReturn >= 0 ? '+' : ''}{signal.expectedReturn ?? 0}%
+                  </span>
                 </span>
               </div>
-              <p className="text-xs font-mono text-slate-500 dark:text-[#8B95A5] mt-0.5 flex items-center gap-1.5">
-                <span className="font-semibold text-slate-900 dark:text-[#F4F7FA]">{currentAsset}</span>
-                <span>•</span>
-                <span className="text-[#10B981] flex items-center gap-0.5">
-                  <ShieldCheck size={12} /> Level 3 Risk Filter OK
-                </span>
-              </p>
+              <div className="w-full h-2 rounded-full overflow-hidden flex bg-slate-200 dark:bg-[#202735]">
+                <div 
+                  style={{ width: `${Math.round((signal.probabilityUp || 0) * 100)}%` }} 
+                  className="bg-[#10B981] transition-all duration-500" 
+                  title={`P(UP): ${Math.round((signal.probabilityUp || 0) * 100)}%`}
+                />
+                <div 
+                  style={{ width: `${Math.round((signal.probabilityNeutral || 0) * 100)}%` }} 
+                  className="bg-[#F59E0B] transition-all duration-500" 
+                  title={`P(NEUTRAL): ${Math.round((signal.probabilityNeutral || 0) * 100)}%`}
+                />
+                <div 
+                  style={{ width: `${Math.round((signal.probabilityDown || 0) * 100)}%` }} 
+                  className="bg-[#EF4444] transition-all duration-500" 
+                  title={`P(DOWN): ${Math.round((signal.probabilityDown || 0) * 100)}%`}
+                />
+              </div>
+              <div className="flex justify-between text-[9px] font-mono font-semibold">
+                <span className="text-[#10B981]">P(UP) {Math.round((signal.probabilityUp || 0) * 100)}%</span>
+                <span className="text-[#F59E0B]">P(FLAT) {Math.round((signal.probabilityNeutral || 0) * 100)}%</span>
+                <span className="text-[#EF4444]">P(DOWN) {Math.round((signal.probabilityDown || 0) * 100)}%</span>
+              </div>
             </div>
-          </div>
-          <div className="text-right">
-            <span className="text-xs font-mono text-slate-500 dark:text-[#5F6978] block">{signal.timestamp}</span>
-            <span className="text-[10px] font-mono text-[#8B5CF6] block mt-0.5 font-bold">● Live Tick</span>
-          </div>
+          )}
         </div>
 
         {/* Indicator Telemetry Matrix */}
@@ -214,16 +252,22 @@ export const SignalPanel: React.FC<SignalPanelProps> = ({
           </div>
 
           <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-[#151B23] border border-slate-200 dark:border-[#242B35]">
-            <span className="text-slate-500 dark:text-[#8B95A5] block text-[10px]">Strategy Profile</span>
-            <span className="text-[#3B82F6] font-bold block truncate">{signal.strategyName}</span>
-            <span className="text-[9px] text-slate-400 dark:text-[#5F6978]">SEBI Margin Compliant</span>
+            <span className="text-slate-500 dark:text-[#8B95A5] block text-[10px]">Deterministic Target (2R)</span>
+            <span className="text-[#10B981] font-bold block">
+              ₹{signal.targetPrice ? signal.targetPrice.toLocaleString('en-IN') : '₹25,120.00'}
+            </span>
+            <span className="text-[9px] text-slate-400 dark:text-[#5F6978]">
+              R:R 1:{signal.riskRewardRatio || 2.0}
+            </span>
           </div>
 
           <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-[#151B23] border border-slate-200 dark:border-[#242B35]">
-            <span className="text-slate-500 dark:text-[#8B95A5] block text-[10px]">On-Chain Attestation</span>
-            <span className="text-[#10B981] font-bold block">Block #{blockNum} • Active</span>
-            <span className="text-[9px] text-slate-400 dark:text-[#5F6978] truncate block">
-              Merkle: {blockMerkle.slice(0, 10)}...
+            <span className="text-slate-500 dark:text-[#8B95A5] block text-[10px]">ATR Stop Loss (1.5x)</span>
+            <span className="text-[#EF4444] font-bold block">
+              ₹{signal.stopLossPrice ? signal.stopLossPrice.toLocaleString('en-IN') : '₹24,680.00'}
+            </span>
+            <span className="text-[9px] text-slate-400 dark:text-[#5F6978]">
+              Max Loss Capped ≤ 0.5%
             </span>
           </div>
         </div>

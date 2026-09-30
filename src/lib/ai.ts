@@ -1,5 +1,8 @@
 import { AISignalData, CandlestickData } from '../types/trading';
 import { generateSHA256 } from './cryptoUtils';
+import { extractQuantitativeFeatures } from './featureEngine';
+import { fetchLiveMarketNews, computeSentimentMetrics } from './newsSentiment';
+import { runMLEnsemblePrediction } from './mlBrain';
 
 export const DEFAULT_GROQ_KEY = '';
 
@@ -72,19 +75,16 @@ export async function askTradeChainAI(prompt: string, context?: any): Promise<st
   const bankNiftyPrice = context?.bankNiftyPrice ? `₹${Number(context.bankNiftyPrice).toLocaleString('en-IN')}` : 'Live Market Feed';
   const activeSectors = context?.sectors ? JSON.stringify(context.sectors) : 'IT (+1.42%), Banking (+0.88%), Pharma (+0.62%)';
 
-  const systemPrompt = `You are TradeChain Quant AI, an elite institutional quantitative trading & cryptographic audit assistant for Indian Stock Exchanges (NSE / BSE).
+  const systemPrompt = `You are TradeChain Quant AI, an institutional quantitative trading intelligence and cryptographic audit assistant for Indian Stock Exchanges (NSE / BSE).
 Real-time Platform Telemetry:
 - Live Indices: NIFTY 50 (${niftyPrice}), BANK NIFTY (${bankNiftyPrice}).
 - Real-time Sector Momentum: ${activeSectors}.
-- Broker Gateways: Upstox Pro API v2 (authorized), Zerodha Kite Connect, Groww API.
-- Active Strategy: NIFTY EMA 20/50 + RSI v1.2 (Hash: 0x92ac71b04a871092eac431102948bbcca428).
-- Execution Proof: Trade TRD-IN-00104 BUY 50 Qty (1 Lot NIFTY 50 Futures) @ ₹24,850.40 IST, Realized P&L +₹3,520.00.
-- Risk Guardrails: SEBI Peak Margin Checks ACTIVE, Intraday Max Loss Cap ₹5,000.00 (5%), Single Position Cap ₹25,000.00.
-- On-Chain Consensus: Finalized in Block #4281 (Merkle Root: 0x9ab42ef71d5b128c704f1129bc4892c90a8e104192b719421de1994801ac, 14 confirmations, ECDSA secp256k1 signature VALID).
+- Market Architecture: LightGBM Ensemble ML Brain + Deterministic Risk Engine + Upstox Pro WebSocket.
+- Active Strategy: Ensemble Multi-Factor v2.4 (Tree Trend + Momentum + Market Regime + Finnhub Sentiment).
+- Execution Proof: Audited on TradeChain Proof-of-Authority ledger with SHA-256 Merkle proofs and ECDSA secp256k1 signatures.
 
 Respond conversationally, intelligently, and authoritatively to the user's specific input: "${prompt}".
-If they greet you, greet them warmly as TradeChain Quant AI.
-If they ask for trading rationale, mathematical formulas, or cryptographic proofs, provide deep quantitative precision.`;
+Never output fake random numbers; explain the underlying quantitative, regime, or cryptographic mechanics.`;
 
   let lastErrorDetail = '';
 
@@ -133,7 +133,7 @@ If they ask for trading rationale, mathematical formulas, or cryptographic proof
     }
   }
 
-  // 2. Try Gemini API Fallback (using active supported models)
+  // 2. Try Gemini API Fallback
   if (geminiKey && geminiKey !== 'undefined') {
     const geminiModels = ['gemini-2.5-flash-lite', 'gemini-flash-latest', 'gemini-3.8-flash'];
     for (const gModel of geminiModels) {
@@ -160,7 +160,7 @@ If they ask for trading rationale, mathematical formulas, or cryptographic proof
     }
   }
 
-  // 3. Dynamic Interactive Fallback (Acknowledges user prompt directly, never static dummy)
+  // 3. Dynamic Interactive Fallback
   const lower = prompt.toLowerCase().trim();
 
   if (lower === 'hi' || lower === 'hello' || lower === 'hey') {
@@ -168,33 +168,26 @@ If they ask for trading rationale, mathematical formulas, or cryptographic proof
 Current Telemetry:
 • NIFTY 50: ${niftyPrice}
 • BANK NIFTY: ${bankNiftyPrice}
+• ML Engine: LightGBM Ensemble + Regime Classifier
 • Upstox Pro API v2: Connected
-• Blockchain Ledger: Block #4281 (14 Confirmations)
+• Blockchain Ledger: Verified Merkle Proofs Active
 
-How can I assist your trading desk today? (e.g., Ask about NIFTY entry rationale, Block #4281 Merkle proofs, or SEBI margin caps.)`;
+How can I assist your trading desk today? (e.g., Ask about ML edge predictions, Market Regimes, or Risk Guardrails.)`;
   }
 
   if (lower.includes('nifty') || lower.includes('enter') || lower.includes('buy') || lower.includes('trade')) {
-    return `[PROOF OF EXECUTION: TRD-IN-00104]
-1. QUANT RATIONALE: NIFTY 50 Futures triggered a BUY signal at ${niftyPrice} as EMA20 crossed above EMA50 with positive momentum divergence (+42.50).
-2. MATHEMATICAL PROOF: RSI(14) measured 58.6 (within entry channel [45, 65]). Volume expanded +28% vs 20-period VOL EMA.
-3. SEBI RISK GATEWAY: Pre-trade margin check verified position allocation against ₹25,000 max single position capital cap.
-4. ON-CHAIN ATTESTATION: Transaction Digest 0x8c7f91a92... committed to Block #4281 (Merkle Root 9ab42ef71...) with ECDSA SECP256K1 signature.`;
-  }
-
-  if (lower.includes('block') || lower.includes('merkle') || lower.includes('verify') || lower.includes('proof')) {
-    return `[CRYPTOGRAPHIC PROOF LOGIC: BLOCK #4281]
-1. MERKLE ROOT AGGREGATION: Root Hash 0x9ab42ef71d5b128c704f1129bc4892c90a8e104192b719421de1994801ac.
-2. TREE PATH VERIFICATION: Leaf[TRD-IN-00104] (0x8c7f91a92...) -> Node H(A) (0xc4b189a2e...) -> MERKLE ROOT.
-3. CONSENSUS VALIDATION: Finalized with 14/14 PoA Consortium validator attestations (NSE-Node-Alpha, BSE-Node-Beta, Mudrex-Node-Gamma).
-4. IMMUTABILITY STATE: Tamper-evident proof confirms 100% data integrity across 14 confirmations.`;
+    return `[QUANT EXECUTION TELEMETRY]
+1. QUANT RATIONALE: NIFTY 50 price action trades at ${niftyPrice}. LightGBM feature vector computes calibrated probability with positive risk/reward edge.
+2. MATHEMATICAL PROOF: Features include EMA(20/50/200), RSI(14), MACD histogram, and rolling volatility.
+3. RISK ENGINE: Maximum risk capped at 0.5% per trade with dynamic ATR trailing stop-loss (1.5x ATR).
+4. ON-CHAIN ATTESTATION: Trades and signals are hashed with SHA-256 and committed with cryptographic nonces.`;
   }
 
   return `[TRADECHAIN QUANT ENGINE - QUERY TELEMETRY]
 Processed request: "${prompt}"
 Telemetry State: NIFTY @ ${niftyPrice} | BANK NIFTY @ ${bankNiftyPrice}.
-Strategy Hash: 0x92ac71b04a871092eac431102948bbcca428.
-${lastErrorDetail ? `Note: Groq gateway notice: ${lastErrorDetail}` : ''}`;
+Strategy: LightGBM Ensemble v2.4 (Trend + Momentum + Regime + Sentiment).
+${lastErrorDetail ? `Note: AI gateway notice: ${lastErrorDetail}` : ''}`;
 }
 
 /**
@@ -208,7 +201,6 @@ export function calculateIndicators(candles: CandlestickData[]): {
   macdStatus: string;
 } {
   if (!candles || candles.length === 0) {
-    // Return zero-baseline — actual price-based values must come from live candles
     return { ema20: 0, ema50: 0, rsi: 50, macdHist: 0, macdStatus: 'CONVERGING' };
   }
 
@@ -258,8 +250,8 @@ export function calculateIndicators(candles: CandlestickData[]): {
 }
 
 /**
- * Generates an institutional AI market signal (BUY/SELL/NEUTRAL) via Groq LLM
- * with deterministic quantitative fallback.
+ * Generates an institutional AI market signal (BUY/SELL/NEUTRAL) via LightGBM Ensemble
+ * and Quantitative Feature Engine, with Groq LLM providing deep qualitative explanations.
  */
 export async function generateLiveAIMarketSignal(params: {
   asset: string;
@@ -280,119 +272,84 @@ export async function generateLiveAIMarketSignal(params: {
     } catch {}
   }
 
-  const indicators = calculateIndicators(candles);
-  const { ema20, ema50, rsi, macdHist, macdStatus } = indicators;
-  const divergence = Math.round((ema20 - ema50) * 100) / 100;
+  // 1. Extract Full Quantitative Feature Vector
+  let features = extractQuantitativeFeatures(asset, candles.length > 0 ? candles : [{
+    time: new Date().toISOString(),
+    open: price,
+    high: price * 1.002,
+    low: price * 0.998,
+    close: price,
+    volume: 1000
+  }]);
 
-  // Genuine multi-factor quantitative rule engine
-  let baselineState: 'BUY' | 'SELL' | 'NEUTRAL' = 'NEUTRAL';
-  let baselineConfidence = 74;
-
-  const isEmaBullish = ema20 > ema50;
-  const isRsiBullish = rsi >= 48 && rsi <= 68;
-  const isRsiBearish = rsi <= 52 && rsi >= 32;
-  const isMacdBullish = macdHist > 0;
-
-  if (isEmaBullish && isRsiBullish && isMacdBullish) {
-    baselineState = 'BUY';
-    baselineConfidence = Math.min(94, Math.round(78 + Math.abs(divergence / (price || 1)) * 500 + (rsi - 50) * 0.5));
-  } else if (!isEmaBullish && isRsiBearish && !isMacdBullish) {
-    baselineState = 'SELL';
-    baselineConfidence = Math.min(94, Math.round(78 + Math.abs(divergence / (price || 1)) * 500 + (50 - rsi) * 0.5));
-  } else if (rsi > 72) {
-    baselineState = 'SELL'; // Overbought mean-reversion
-    baselineConfidence = 82;
-  } else if (rsi < 28) {
-    baselineState = 'BUY'; // Oversold mean-reversion bounce
-    baselineConfidence = 83;
-  } else if (Math.abs(divergence) < price * 0.0005) {
-    baselineState = 'NEUTRAL';
-    baselineConfidence = 70;
-  } else {
-    baselineState = isEmaBullish ? 'BUY' : 'SELL';
-    baselineConfidence = 72;
+  // 2. Fetch Live Market News & Sentiment (Finnhub + NewsAPI + GDELT)
+  let sentimentMetrics;
+  try {
+    const rawNews = await fetchLiveMarketNews(asset);
+    sentimentMetrics = computeSentimentMetrics(rawNews);
+  } catch {
+    sentimentMetrics = computeSentimentMetrics([]);
   }
 
-  const sectorSummary = sectors.length > 0 
-    ? sectors.slice(0, 4).map(s => `${s.name} (${s.change >= 0 ? '+' : ''}${s.change.toFixed(2)}%)`).join(', ')
-    : 'NIFTY IT (+1.42%), BANK NIFTY (+0.88%), PHARMA (+0.54%)';
+  // 3. Run LightGBM Quantitative Ensemble Prediction
+  const mlOutput = runMLEnsemblePrediction(features, sentimentMetrics);
 
+  const { ema20, ema50, rsi14, macdHist } = features;
+  const macdStatus = macdHist >= 0 ? 'BULLISH_EXPANSION' : 'BEARISH_CONTRACTION';
   const timeStr = new Date().toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour12: false }) + ' IST';
   const groqKey = getActiveGroqKey();
 
-  let signalState = baselineState;
-  let confidence = baselineConfidence;
-  let rationale = `${asset} price action (₹${price.toLocaleString('en-IN')}) trades with EMA20 (₹${ema20.toLocaleString('en-IN')}) ${divergence >= 0 ? 'above' : 'below'} EMA50 (₹${ema50.toLocaleString('en-IN')}) by ${divergence >= 0 ? '+' : ''}${divergence} pts. RSI(14) is at ${rsi.toFixed(1)} with ${macdStatus.toLowerCase().replace('_', ' ')} momentum. Technical setup indicates a ${baselineState} bias with pre-trade SEBI risk parameters validated.`;
+  let signalState = mlOutput.signal as 'BUY' | 'SELL' | 'NEUTRAL';
+  let confidence = mlOutput.confidence;
+  let rationale = mlOutput.rationale;
 
-  // Query Groq AI for deep quantitative analysis
+  // 4. Enrich Rationale via Groq LLM (LLM acts purely as human-readable explainer, not predictor)
   if (groqKey) {
-    const prompt = `You are an elite institutional quantitative analyst for Indian Stock Exchanges (NSE/BSE).
-Analyze live market telemetry for ${asset}:
+    const prompt = `You are TradeChain Quant Explainer.
+Explain the following quantitative ML decision for ${asset}:
 - Current Price: ₹${price.toLocaleString('en-IN')} (${changePct >= 0 ? '+' : ''}${changePct.toFixed(2)}%)
-- EMA20: ${ema20.toFixed(2)} vs EMA50: ${ema50.toFixed(2)} (Divergence: ${divergence >= 0 ? '+' : ''}${divergence.toFixed(2)} pts)
-- RSI(14): ${rsi.toFixed(1)}
-- MACD Histogram: ${macdHist >= 0 ? '+' : ''}${macdHist.toFixed(2)} (${macdStatus})
-- Sector Breadth: ${sectorSummary}
+- ML Ensemble Signal: ${mlOutput.signal} (Confidence: ${mlOutput.confidence}%)
+- Calibrated Probabilities: P(UP)=${(mlOutput.probabilityUp * 100).toFixed(1)}%, P(DOWN)=${(mlOutput.probabilityDown * 100).toFixed(1)}%, P(NEUTRAL)=${(mlOutput.probabilityNeutral * 100).toFixed(1)}%
+- Expected Return: ${mlOutput.expectedReturnPct >= 0 ? '+' : ''}${mlOutput.expectedReturnPct}% (Exp Volatility: ${mlOutput.expectedVolatilityPct}%)
+- Market Regime: ${mlOutput.marketRegime}
+- Technical Indicators: EMA20=₹${ema20}, EMA50=₹${ema50}, RSI(14)=${rsi14}, MACD Hist=${macdHist}
+- Target: ₹${mlOutput.recommendedTargetPrice} (+2R), Stop Loss: ₹${mlOutput.recommendedStopLoss} (1.5x ATR)
+- News Sentiment: ${sentimentMetrics.sentimentState} (Score: ${sentimentMetrics.overallScore})
 
-Evaluate these indicators objectively. Determine whether the telemetry justifies a "BUY", "SELL", or "NEUTRAL" signal.
-Return ONLY valid JSON (no markdown fences, no extra text):
-{
-  "signal": "BUY" | "SELL" | "NEUTRAL",
-  "confidence": <integer between 60 and 96>,
-  "rationale": "<2-3 concise institutional sentences explaining the mathematical edge, price action relative to EMA20/50, volume/sector confirmation, and pre-trade SEBI risk parameters cleared via Upstox Pro API.>"
-}`;
+Write 2-3 precise institutional sentences explaining why the quantitative features and market regime justify this ${mlOutput.signal} decision. Return ONLY the explanation string.`;
 
-    const models = ['qwen/qwen3.8-27b', 'openai/gpt-oss-120b'];
-    const endpoints = ['/api/groq/openai/v1/chat/completions', 'https://api.groq.com/openai/v1/chat/completions'];
+    try {
+      const isDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+      const endpoint = isDev ? '/api/groq/openai/v1/chat/completions' : 'https://api.groq.com/openai/v1/chat/completions';
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${groqKey}`
+        },
+        body: JSON.stringify({
+          model: 'qwen/qwen3.8-27b',
+          messages: [{ role: 'user', content: prompt }],
+          temperature: 0.2,
+          max_tokens: 220
+        })
+      });
 
-    for (const endpoint of endpoints) {
-      let resolved = false;
-      for (const model of models) {
-        try {
-          const res = await fetch(endpoint, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${groqKey}`
-            },
-            body: JSON.stringify({
-              model,
-              messages: [{ role: 'user', content: prompt }],
-              temperature: 0.2,
-              max_tokens: 300
-            })
-          });
-
-          if (res.ok) {
-            const data = await res.json();
-            const rawContent = data.choices?.[0]?.message?.content || data.choices?.[0]?.message?.reasoning;
-            if (rawContent) {
-              const cleanJson = rawContent.replace(/```json/g, '').replace(/```/g, '').trim();
-              const parsed = JSON.parse(cleanJson);
-              if (parsed.signal && (parsed.signal === 'BUY' || parsed.signal === 'SELL' || parsed.signal === 'NEUTRAL')) {
-                signalState = parsed.signal;
-              }
-              if (parsed.confidence && typeof parsed.confidence === 'number') {
-                confidence = Math.min(98, Math.max(60, parsed.confidence));
-              }
-              if (parsed.rationale && parsed.rationale.trim()) {
-                rationale = parsed.rationale.trim();
-              }
-              resolved = true;
-              break;
-            }
-          }
-        } catch {
-          // fallback to deterministic rule values
+      if (res.ok) {
+        const data = await res.json();
+        const text = data.choices?.[0]?.message?.content || data.choices?.[0]?.message?.reasoning;
+        if (text && text.trim()) {
+          rationale = text.trim();
         }
       }
-      if (resolved) break;
+    } catch {
+      // Keep deterministic ML rationale
     }
   }
 
   const strategyHash = latestBlockHash 
     ? latestBlockHash 
-    : generateSHA256(`signal:${asset}:${price}:${ema20}:${ema50}:${rsi.toFixed(1)}:${signalState}:${Date.now()}`);
+    : generateSHA256(`signal:${asset}:${price}:${mlOutput.signal}:${mlOutput.probabilityUp}:${Date.now()}`);
 
   const shortAsset = asset.replace(' Futures', '').replace(' Eq', '').trim();
 
@@ -401,16 +358,27 @@ Return ONLY valid JSON (no markdown fences, no extra text):
     asset,
     confidence,
     timestamp: timeStr,
-    strategyName: `${shortAsset} Quant EMA + RSI`,
+    strategyName: `${shortAsset} LightGBM Ensemble`,
     strategyVersion: 'v2.4',
     strategyHash,
     indicators: {
       ema20,
       ema50,
-      rsi,
+      rsi: rsi14,
       macdStatus,
       macdHist
     },
-    rationale
+    rationale,
+    probabilityUp: mlOutput.probabilityUp,
+    probabilityDown: mlOutput.probabilityDown,
+    probabilityNeutral: mlOutput.probabilityNeutral,
+    expectedReturn: mlOutput.expectedReturnPct,
+    expectedVolatility: mlOutput.expectedVolatilityPct,
+    marketRegime: mlOutput.marketRegime,
+    targetPrice: mlOutput.recommendedTargetPrice,
+    stopLossPrice: mlOutput.recommendedStopLoss,
+    riskRewardRatio: mlOutput.riskRewardRatio,
+    sentimentScore: sentimentMetrics.overallScore,
   };
 }
+
