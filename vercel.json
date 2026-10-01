@@ -1,4 +1,5 @@
 {
+  "cleanUrls": true,
   "rewrites": [
     {
       "source": "/api/yahoo/(.*)",
@@ -25,7 +26,7 @@
       "destination": "https://api.gdeltproject.org/$1"
     },
     {
-      "source": "/(.*)",
+      "source": "/((?!api/|_vercel/|[a-f0-9]{16}/event|assets/|favicon|.*\\..*).*)",
       "destination": "/index.html"
     }
   ]
